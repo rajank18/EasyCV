@@ -1,7 +1,7 @@
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:carousel_slider/carousel_controller.dart';
 import 'package:flutter/material.dart';
-import 'E:/github/EasyCV/assets/images/logowithoutbg.png';
+
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -18,7 +18,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final _slides = const [
     _OnboardSlide(
-      icon: Icons.assignment_turned_in_outlined,
+      imagePath: 'assets/images/logowithoutbg.png',
       title: 'Welcome to EasyCV',
       subtitle: 'Create ATS-friendly resumes with a simple form.',
     ),
@@ -38,6 +38,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -95,11 +96,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 }
 
 class _OnboardSlide {
-  final IconData icon;
+  final IconData? icon;
+  final String? imagePath;
   final String title;
   final String subtitle;
 
-  const _OnboardSlide({required this.icon, required this.title, required this.subtitle});
+  const _OnboardSlide({
+    this.icon,
+    this.imagePath,
+    required this.title,
+    required this.subtitle,
+  });
 }
 
 class _SlideView extends StatelessWidget {
@@ -115,7 +122,14 @@ class _SlideView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(slide.icon, size: 120, color: theme.colorScheme.primary),
+          if (slide.imagePath != null)
+            Image.asset(
+              slide.imagePath!,
+              height: 200,
+              fit: BoxFit.contain,
+            )
+          else if (slide.icon != null)
+            Icon(slide.icon, size: 120, color: const Color(0xFF0e5bbc)),
           const SizedBox(height: 32),
           Text(
             slide.title,
