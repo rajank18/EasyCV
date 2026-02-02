@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -11,11 +13,61 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   int _selectedIndex = 0;
+  bool _isLoading = true;
+  bool _profileComplete = false;
+  String _userName = 'User';
+  
+  @override
+  void initState() {
+    super.initState();
+    _checkProfileStatus();
+  }
+  
+  Future<void> _checkProfileStatus() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      Navigator.of(context).pushReplacementNamed('/login');
+      return;
+    }
+    
+    try {
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        final data = doc.data();
+        setState(() {
+          _profileComplete = data?['profileComplete'] ?? false;
+          _userName = data?['profileData']?['fullName'] ?? data?['name'] ?? 'User';
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color.fromARGB(255, 249, 251, 255),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF0e5bbc),
+          ),
+        ),
+      );
+    }
     
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 249, 251, 255),
@@ -28,7 +80,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 // Greeting
                 Text(
-                  'Hey, User',
+                  'Hey, $_userName',
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
@@ -36,8 +88,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 24),
                 
+                // Profile incomplete warning
+                if (!_profileComplete) _ProfileIncompleteCard(),
+                if (!_profileComplete) const SizedBox(height: 24),
+                
                 // Create New Resume Card
-                _CreateNewResumeCard(),
+                _CreateNewResumeCard(profileComplete: _profileComplete),
                 const SizedBox(height: 32),
                 
                 // Past Resumes Section
@@ -49,7 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                _PastResumesSection(),
+                _PastResumesSection(userId: _auth.currentUser?.uid ?? ''),
                 const SizedBox(height: 32),
                 
                 // Explore Themes Section
@@ -75,12 +131,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Navigate to resume creation page
-          // Navigator.of(context).pushNamed('/create-resume');
+        onPressed: _profileComplete ? () {
+          // Navigate to template selection
+          Navigator.of(context).pushNamed('/template-selection');
+        } : () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please complete your profile first'),
+              backgroundColor: Colors.orange,
+            ),
+          );
         },
-        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-        child: const Icon(Icons.add, color: Color.fromARGB(255, 67, 83, 228)),
+        backgroundColor: const Color(0xFF0e5bbc),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -111,9 +174,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // Handle navigation based on index
               if (index == 2) {
                 Navigator.pushNamed(context, '/profile-info');
+              } else if (index == 3) {
+                Navigator.pushNamed(context, '/settings');
               }
               // if (index == 1) Navigator.pushNamed(context, '/explore');
-              // if (index == 3) Navigator.pushNamed(context, '/settings');
             },
             selectedItemColor: const Color(0xFF0e5bbc),
             unselectedItemColor: const Color.fromARGB(255, 80, 80, 80),
@@ -149,8 +213,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
+// Profile Incomplete Warning Card
+class _ProfileIncompleteCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade300, width: 2),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 32),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Complete Your Profile',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Please complete your profile to create resumes',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.orange.shade800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pushNamed('/profile-info');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Complete'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // Create New Resume Card Widget
 class _CreateNewResumeCard extends StatelessWidget {
+  final bool profileComplete;
+  
+  const _CreateNewResumeCard({this.profileComplete = false});
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -166,9 +292,16 @@ class _CreateNewResumeCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            // Navigate to resume creation
-            // Navigator.of(context).pushNamed('/create-resume');
+          onTap: profileComplete ? () {
+            // Navigate to template selection
+            Navigator.of(context).pushNamed('/template-selection');
+          } : () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please complete your profile first'),
+                backgroundColor: Colors.orange,
+              ),
+            );
           },
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -218,57 +351,159 @@ class _CreateNewResumeCard extends StatelessWidget {
 
 // Past Resumes Section
 class _PastResumesSection extends StatelessWidget {
+  final String userId;
+  
+  const _PastResumesSection({required this.userId});
+  
   @override
   Widget build(BuildContext context) {
-    // Sample data - replace with actual data later
-    final resumes = [
-      {'title': 'Software Developer Resume', 'date': 'Jan 20, 2026', 'atsScore': 85},
-      {'title': 'Product Manager Resume', 'date': 'Jan 15, 2026', 'atsScore': 78},
-    ];
-    
-    if (resumes.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade400),
-              const SizedBox(height: 12),
-              Text(
-                'No resumes yet',
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-            ],
-          ),
-        ),
-      );
+    if (userId.isEmpty) {
+      return _EmptyResumesWidget();
     }
     
-    return Column(
-      children: resumes.map((resume) => _ResumeCard(
-        title: resume['title'] as String,
-        date: resume['date'] as String,
-        atsScore: resume['atsScore'] as int,
-      )).toList(),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('resumes')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: CircularProgressIndicator(
+                color: Color(0xFF0e5bbc),
+              ),
+            ),
+          );
+        }
+        
+        if (snapshot.hasError) {
+          return Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.red.shade300),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Error loading resumes',
+                    style: TextStyle(color: Colors.red.shade600),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _EmptyResumesWidget();
+        }
+        
+        return Column(
+          children: snapshot.data!.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return _ResumeCard(
+              resumeId: doc.id,
+              title: data['title'] ?? 'Untitled Resume',
+              date: _formatDate(data['createdAt']),
+              atsScore: data['atsScore'] ?? 0,
+              templateType: data['templateType'] ?? 'default',
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+  
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return 'Just now';
+    try {
+      final date = (timestamp as Timestamp).toDate();
+      final now = DateTime.now();
+      final difference = now.difference(date);
+      
+      if (difference.inDays == 0) {
+        return 'Today';
+      } else if (difference.inDays == 1) {
+        return 'Yesterday';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} days ago';
+      } else {
+        return '${date.day}/${date.month}/${date.year}';
+      }
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+}
+
+// Empty Resumes Widget
+class _EmptyResumesWidget extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.grey.shade50,
+      ),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            Text(
+              'No resumes yet',
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Create your first resume to get started',
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 // Resume Card Widget
 class _ResumeCard extends StatelessWidget {
+  final String resumeId;
   final String title;
   final String date;
   final int atsScore;
+  final String templateType;
   
   const _ResumeCard({
+    required this.resumeId,
     required this.title,
     required this.date,
     required this.atsScore,
+    required this.templateType,
   });
+  
+  Color _getScoreColor() {
+    if (atsScore >= 80) return Colors.green;
+    if (atsScore >= 60) return Colors.orange;
+    return Colors.red;
+  }
   
   @override
   Widget build(BuildContext context) {
@@ -291,7 +526,13 @@ class _ResumeCard extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () {
-            // Open resume details
+            // Open resume details/edit
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Opening resume: $title'),
+                backgroundColor: const Color(0xFF0e5bbc),
+              ),
+            );
           },
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -316,34 +557,113 @@ class _ResumeCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: const TextStyle(
                           fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          color: Colors.black87,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        date,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600),
+                          const SizedBox(width: 4),
+                          Text(
+                            date,
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(Icons.grid_view, size: 14, color: Colors.grey.shade600),
+                          const SizedBox(width: 4),
+                          Text(
+                            templateType,
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: atsScore >= 80 ? Colors.green.shade50 : Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'ATS: $atsScore%',
-                    style: TextStyle(
-                      color: atsScore >= 80 ? Colors.green.shade700 : Colors.orange.shade700,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                if (atsScore > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _getScoreColor().withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _getScoreColor(), width: 1.5),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.speed, size: 16, color: _getScoreColor()),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$atsScore',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: _getScoreColor(),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                const SizedBox(width: 8),
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      // Edit resume
+                    } else if (value == 'delete') {
+                      _deleteResume(context);
+                    } else if (value == 'download') {
+                      // Download resume
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Download feature coming soon!'),
+                          backgroundColor: Color(0xFF0e5bbc),
+                        ),
+                      );
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 20),
+                          SizedBox(width: 12),
+                          Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'download',
+                      child: Row(
+                        children: [
+                          Icon(Icons.download, size: 20),
+                          SizedBox(width: 12),
+                          Text('Download'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 20, color: Colors.red),
+                          SizedBox(width: 12),
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -352,8 +672,62 @@ class _ResumeCard extends StatelessWidget {
       ),
     );
   }
+  
+  Future<void> _deleteResume(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Resume'),
+        content: Text('Are you sure you want to delete "$title"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .collection('resumes')
+              .doc(resumeId)
+              .delete();
+          
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Resume deleted successfully'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting resume: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
 }
 
+// Explore Themes Section (Placeholder for future template dataset)
 // Explore Themes Section
 class _ExploreThemesSection extends StatefulWidget {
   @override

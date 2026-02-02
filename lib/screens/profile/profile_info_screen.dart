@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
   const ProfileInfoScreen({super.key});
@@ -10,13 +12,172 @@ class ProfileInfoScreen extends StatefulWidget {
 }
 
 class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
   // Track which section is expanded
   int? _expandedIndex;
   
-  // Check if profile is created (will be replaced with actual state management)
+  // Check if profile is created
   bool _isProfileCreated = false;
+  bool _isLoading = false;
   
   int _selectedIndex = 2; // Profile tab selected
+  
+  // Text Controllers
+  final _fullNameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _dobController = TextEditingController();
+  final _linkedinController = TextEditingController();
+  
+  final _courseController = TextEditingController();
+  final _universityController = TextEditingController();
+  final _gradeController = TextEditingController();
+  final _yearController = TextEditingController();
+  
+  final _jobTitleController = TextEditingController();
+  final _companyController = TextEditingController();
+  final _durationController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  
+  final _skillsController = TextEditingController();
+  final _objectiveController = TextEditingController();
+  final _referencesController = TextEditingController();
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+  
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _dobController.dispose();
+    _linkedinController.dispose();
+    _courseController.dispose();
+    _universityController.dispose();
+    _gradeController.dispose();
+    _yearController.dispose();
+    _jobTitleController.dispose();
+    _companyController.dispose();
+    _durationController.dispose();
+    _descriptionController.dispose();
+    _skillsController.dispose();
+    _objectiveController.dispose();
+    _referencesController.dispose();
+    super.dispose();
+  }
+  
+  Future<void> _loadProfileData() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    
+    try {
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        final data = doc.data();
+        final profileData = data?['profileData'] as Map<String, dynamic>?;
+        
+        if (profileData != null) {
+          setState(() {
+            _fullNameController.text = profileData['fullName'] ?? '';
+            _emailController.text = profileData['email'] ?? user.email ?? '';
+            _phoneController.text = profileData['phone'] ?? '';
+            _addressController.text = profileData['address'] ?? '';
+            _dobController.text = profileData['dob'] ?? '';
+            _linkedinController.text = profileData['linkedin'] ?? '';
+            
+            _courseController.text = profileData['course'] ?? '';
+            _universityController.text = profileData['university'] ?? '';
+            _gradeController.text = profileData['grade'] ?? '';
+            _yearController.text = profileData['year'] ?? '';
+            
+            _jobTitleController.text = profileData['jobTitle'] ?? '';
+            _companyController.text = profileData['company'] ?? '';
+            _durationController.text = profileData['duration'] ?? '';
+            _descriptionController.text = profileData['description'] ?? '';
+            
+            _skillsController.text = profileData['skills'] ?? '';
+            _objectiveController.text = profileData['objective'] ?? '';
+            _referencesController.text = profileData['references'] ?? '';
+            
+            _isProfileCreated = data?['profileComplete'] ?? false;
+          });
+        } else {
+          // Pre-fill email from Firebase Auth
+          _emailController.text = user.email ?? '';
+        }
+      }
+    } catch (e) {
+      print('Error loading profile: $e');
+    }
+  }
+  
+  Future<void> _saveProfile() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      await _firestore.collection('users').doc(user.uid).set({
+        'profileComplete': true,
+        'profileData': {
+          'fullName': _fullNameController.text,
+          'email': _emailController.text,
+          'phone': _phoneController.text,
+          'address': _addressController.text,
+          'dob': _dobController.text,
+          'linkedin': _linkedinController.text,
+          'course': _courseController.text,
+          'university': _universityController.text,
+          'grade': _gradeController.text,
+          'year': _yearController.text,
+          'jobTitle': _jobTitleController.text,
+          'company': _companyController.text,
+          'duration': _durationController.text,
+          'description': _descriptionController.text,
+          'skills': _skillsController.text,
+          'objective': _objectiveController.text,
+          'references': _referencesController.text,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      setState(() {
+        _isProfileCreated = true;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile saved successfully!'),
+            backgroundColor: Color(0xFF0e5bbc),
+          ),
+        );
+        
+        // Navigate to dashboard after save
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving profile: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +213,14 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       title: 'Personal Details',
                       isExpanded: _expandedIndex == 0,
                       onTap: () => setState(() => _expandedIndex = _expandedIndex == 0 ? null : 0),
-                      child: _PersonalDetailsForm(),
+                      child: _PersonalDetailsForm(
+                        fullNameController: _fullNameController,
+                        emailController: _emailController,
+                        phoneController: _phoneController,
+                        addressController: _addressController,
+                        dobController: _dobController,
+                        linkedinController: _linkedinController,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     
@@ -62,7 +230,12 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       title: 'Education Details',
                       isExpanded: _expandedIndex == 1,
                       onTap: () => setState(() => _expandedIndex = _expandedIndex == 1 ? null : 1),
-                      child: _EducationDetailsForm(),
+                      child: _EducationDetailsForm(
+                        courseController: _courseController,
+                        universityController: _universityController,
+                        gradeController: _gradeController,
+                        yearController: _yearController,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     
@@ -72,7 +245,12 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       title: 'Experience',
                       isExpanded: _expandedIndex == 2,
                       onTap: () => setState(() => _expandedIndex = _expandedIndex == 2 ? null : 2),
-                      child: _ExperienceForm(),
+                      child: _ExperienceForm(
+                        jobTitleController: _jobTitleController,
+                        companyController: _companyController,
+                        durationController: _durationController,
+                        descriptionController: _descriptionController,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     
@@ -82,7 +260,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       title: 'Skills',
                       isExpanded: _expandedIndex == 3,
                       onTap: () => setState(() => _expandedIndex = _expandedIndex == 3 ? null : 3),
-                      child: _SkillsForm(),
+                      child: _SkillsForm(controller: _skillsController),
                     ),
                     const SizedBox(height: 12),
                     
@@ -92,7 +270,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       title: 'Objective',
                       isExpanded: _expandedIndex == 4,
                       onTap: () => setState(() => _expandedIndex = _expandedIndex == 4 ? null : 4),
-                      child: _ObjectiveForm(),
+                      child: _ObjectiveForm(controller: _objectiveController),
                     ),
                     const SizedBox(height: 12),
                     
@@ -102,7 +280,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       title: 'References',
                       isExpanded: _expandedIndex == 5,
                       onTap: () => setState(() => _expandedIndex = _expandedIndex == 5 ? null : 5),
-                      child: _ReferencesForm(),
+                      child: _ReferencesForm(controller: _referencesController),
                     ),
                     const SizedBox(height: 20),
                   ],
@@ -126,18 +304,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () {
-                    // Save profile logic
-                    setState(() {
-                      _isProfileCreated = true;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Profile saved successfully!'),
-                        backgroundColor: Color(0xFF0e5bbc),
-                      ),
-                    );
-                  },
+                  onPressed: _isLoading ? null : _saveProfile,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF0e5bbc),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -145,13 +312,22 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    _isProfileCreated ? 'Update Profile' : 'Save Profile',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          _isProfileCreated ? 'Update Profile' : 'Save Profile',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -184,8 +360,8 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
               if (index != _selectedIndex) {
                 if (index == 0) {
                   Navigator.pushReplacementNamed(context, '/dashboard');
-                } else if (index == 1) {
-                  // Navigator.pushReplacementNamed(context, '/explore');
+                } else if (index == 3) {
+                  Navigator.pushReplacementNamed(context, '/settings');
                 }
                 setState(() {
                   _selectedIndex = index;
@@ -302,21 +478,37 @@ class _ProfileSection extends StatelessWidget {
 
 // Personal Details Form
 class _PersonalDetailsForm extends StatelessWidget {
+  final TextEditingController fullNameController;
+  final TextEditingController emailController;
+  final TextEditingController phoneController;
+  final TextEditingController addressController;
+  final TextEditingController dobController;
+  final TextEditingController linkedinController;
+  
+  const _PersonalDetailsForm({
+    required this.fullNameController,
+    required this.emailController,
+    required this.phoneController,
+    required this.addressController,
+    required this.dobController,
+    required this.linkedinController,
+  });
+  
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildTextField('Full Name', Icons.person),
+        _buildTextField('Full Name', Icons.person, fullNameController),
         const SizedBox(height: 12),
-        _buildTextField('Email', Icons.email),
+        _buildTextField('Email', Icons.email, emailController),
         const SizedBox(height: 12),
-        _buildTextField('Phone Number', Icons.phone),
+        _buildTextField('Phone Number', Icons.phone, phoneController),
         const SizedBox(height: 12),
-        _buildTextField('Address', Icons.location_on),
+        _buildTextField('Address', Icons.location_on, addressController),
         const SizedBox(height: 12),
-        _buildTextField('Date of Birth', Icons.calendar_today),
+        _buildTextField('Date of Birth', Icons.calendar_today, dobController),
         const SizedBox(height: 12),
-        _buildTextField('LinkedIn URL', Icons.link),
+        _buildTextField('LinkedIn URL', Icons.link, linkedinController),
       ],
     );
   }
@@ -324,17 +516,29 @@ class _PersonalDetailsForm extends StatelessWidget {
 
 // Education Details Form
 class _EducationDetailsForm extends StatelessWidget {
+  final TextEditingController courseController;
+  final TextEditingController universityController;
+  final TextEditingController gradeController;
+  final TextEditingController yearController;
+  
+  const _EducationDetailsForm({
+    required this.courseController,
+    required this.universityController,
+    required this.gradeController,
+    required this.yearController,
+  });
+  
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildTextField('Course/Degree', Icons.school),
+        _buildTextField('Course/Degree', Icons.school, courseController),
         const SizedBox(height: 12),
-        _buildTextField('University/Institution', Icons.business),
+        _buildTextField('University/Institution', Icons.business, universityController),
         const SizedBox(height: 12),
-        _buildTextField('Grade/CGPA', Icons.grade),
+        _buildTextField('Grade/CGPA', Icons.grade, gradeController),
         const SizedBox(height: 12),
-        _buildTextField('Year of Completion', Icons.date_range),
+        _buildTextField('Year of Completion', Icons.date_range, yearController),
       ],
     );
   }
@@ -342,17 +546,29 @@ class _EducationDetailsForm extends StatelessWidget {
 
 // Experience Form
 class _ExperienceForm extends StatelessWidget {
+  final TextEditingController jobTitleController;
+  final TextEditingController companyController;
+  final TextEditingController durationController;
+  final TextEditingController descriptionController;
+  
+  const _ExperienceForm({
+    required this.jobTitleController,
+    required this.companyController,
+    required this.durationController,
+    required this.descriptionController,
+  });
+  
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildTextField('Job Title', Icons.work),
+        _buildTextField('Job Title', Icons.work, jobTitleController),
         const SizedBox(height: 12),
-        _buildTextField('Company Name', Icons.business),
+        _buildTextField('Company Name', Icons.business, companyController),
         const SizedBox(height: 12),
-        _buildTextField('Duration (e.g., 2020-2023)', Icons.access_time),
+        _buildTextField('Duration (e.g., 2020-2023)', Icons.access_time, durationController),
         const SizedBox(height: 12),
-        _buildTextField('Job Description', Icons.description, maxLines: 4),
+        _buildTextField('Job Description', Icons.description, descriptionController, maxLines: 4),
       ],
     );
   }
@@ -360,11 +576,15 @@ class _ExperienceForm extends StatelessWidget {
 
 // Skills Form
 class _SkillsForm extends StatelessWidget {
+  final TextEditingController controller;
+  
+  const _SkillsForm({required this.controller});
+  
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildTextField('Skills (comma separated)', Icons.star, maxLines: 3),
+        _buildTextField('Skills (comma separated)', Icons.star, controller, maxLines: 3),
         const SizedBox(height: 8),
         Text(
           'Example: Python, JavaScript, React, Node.js',
@@ -381,11 +601,15 @@ class _SkillsForm extends StatelessWidget {
 
 // Objective Form
 class _ObjectiveForm extends StatelessWidget {
+  final TextEditingController controller;
+  
+  const _ObjectiveForm({required this.controller});
+  
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildTextField('Career Objective', Icons.flag, maxLines: 5),
+        _buildTextField('Career Objective', Icons.flag, controller, maxLines: 5),
         const SizedBox(height: 8),
         Text(
           'Write a brief summary of your career goals',
@@ -402,23 +626,33 @@ class _ObjectiveForm extends StatelessWidget {
 
 // References Form
 class _ReferencesForm extends StatelessWidget {
+  final TextEditingController controller;
+  
+  const _ReferencesForm({required this.controller});
+  
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildTextField('Reference Name', Icons.person),
-        const SizedBox(height: 12),
-        _buildTextField('Position/Title', Icons.work),
-        const SizedBox(height: 12),
-        _buildTextField('Contact Information', Icons.contact_phone),
+        _buildTextField('References', Icons.contact_mail, controller, maxLines: 5),
+        const SizedBox(height: 8),
+        Text(
+          'Format: Name, Position, Contact (one per line)',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
       ],
     );
   }
 }
 
 // Reusable Text Field Builder
-Widget _buildTextField(String label, IconData icon, {int maxLines = 1}) {
+Widget _buildTextField(String label, IconData icon, TextEditingController controller, {int maxLines = 1}) {
   return TextField(
+    controller: controller,
     maxLines: maxLines,
     decoration: InputDecoration(
       labelText: label,

@@ -82,7 +82,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     )
                   else
                     FilledButton(
-                      onPressed: () => Navigator.of(context).pushReplacementNamed('/dashboard'),
+                      onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
                       child: const Text('Start'),
                     ),
                 ],
