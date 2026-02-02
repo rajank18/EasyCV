@@ -2,7 +2,6 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:carousel_slider/carousel_controller.dart';
 import 'package:flutter/material.dart';
 
-
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -38,7 +37,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -125,11 +123,12 @@ class _SlideView extends StatelessWidget {
           if (slide.imagePath != null)
             Image.asset(
               slide.imagePath!,
-              height: 200,
+              height: 280,
+              width: 280,
               fit: BoxFit.contain,
             )
           else if (slide.icon != null)
-            Icon(slide.icon, size: 120, color: const Color(0xFF0e5bbc)),
+            Icon(slide.icon, size: 120, color: theme.colorScheme.primary),
           const SizedBox(height: 32),
           Text(
             slide.title,
