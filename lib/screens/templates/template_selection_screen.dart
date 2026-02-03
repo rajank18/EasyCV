@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TemplateSelectionScreen extends StatefulWidget {
   const TemplateSelectionScreen({super.key});
@@ -23,70 +24,23 @@ class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
     'Healthcare',
   ];
 
-  final List<Map<String, dynamic>> _templates = [
-    {
-      'id': 'modern-se-1',
-      'name': 'Modern Tech',
-      'category': 'Software Engineer',
-      'image': 'assets/templates/modern_tech.png',
-      'description': 'Clean and modern design for tech professionals',
-    },
-    {
-      'id': 'minimal-se-1',
-      'name': 'Minimal Code',
-      'category': 'Software Engineer',
-      'image': 'assets/templates/minimal_code.png',
-      'description': 'Minimalist design focused on your code skills',
-    },
-    {
-      'id': 'data-1',
-      'name': 'Data Analyst Pro',
-      'category': 'Data Science',
-      'image': 'assets/templates/data_analyst.png',
-      'description': 'Perfect for data scientists and analysts',
-    },
-    {
-      'id': 'hr-1',
-      'name': 'HR Professional',
-      'category': 'HR',
-      'image': 'assets/templates/hr_pro.png',
-      'description': 'Professional design for HR roles',
-    },
-    {
-      'id': 'marketing-1',
-      'name': 'Creative Marketing',
-      'category': 'Marketing',
-      'image': 'assets/templates/creative_marketing.png',
-      'description': 'Bold design for marketing professionals',
-    },
-    {
-      'id': 'design-1',
-      'name': 'Designer Portfolio',
-      'category': 'Design',
-      'image': 'assets/templates/designer.png',
-      'description': 'Showcase your design skills',
-    },
-    {
-      'id': 'business-1',
-      'name': 'Executive',
-      'category': 'Business',
-      'image': 'assets/templates/executive.png',
-      'description': 'Professional design for business roles',
-    },
-    {
-      'id': 'healthcare-1',
-      'name': 'Medical Professional',
-      'category': 'Healthcare',
-      'image': 'assets/templates/medical.png',
-      'description': 'Clean design for healthcare professionals',
-    },
-  ];
+  List<Map<String, dynamic>> _filterTemplates(List<DocumentSnapshot> docs) {
+    final templates = docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return {
+        'id': data['id'] ?? doc.id,
+        'name': data['name'] ?? 'Untitled Template',
+        'category': data['category'] ?? 'General',
+        'imageUrl': data['imageUrl'] ?? '',
+        'description': data['description'] ?? '',
+        'isActive': data['isActive'] ?? true,
+      };
+    }).where((template) => template['isActive'] == true).toList();
 
-  List<Map<String, dynamic>> get _filteredTemplates {
     if (_selectedCategory == 'All') {
-      return _templates;
+      return templates;
     }
-    return _templates.where((t) => t['category'] == _selectedCategory).toList();
+    return templates.where((t) => t['category'] == _selectedCategory).toList();
   }
 
   @override
@@ -148,10 +102,46 @@ class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
             ),
           ),
           
-          // Templates Grid
+          // Templates Grid with StreamBuilder
           Expanded(
-            child: _filteredTemplates.isEmpty
-                ? Center(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('templates')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF0e5bbc),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red.shade300,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading templates',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -162,7 +152,7 @@ class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'No templates found',
+                          'No templates available',
                           style: TextStyle(
                             fontSize: 16,
                             color: Colors.grey.shade600,
@@ -170,35 +160,62 @@ class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
                         ),
                       ],
                     ),
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.all(20),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.7,
+                  );
+                }
+
+                final filteredTemplates = _filterTemplates(snapshot.data!.docs);
+
+                if (filteredTemplates.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.description_outlined,
+                          size: 64,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No templates in this category',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
                     ),
-                    itemCount: _filteredTemplates.length,
-                    itemBuilder: (context, index) {
-                      final template = _filteredTemplates[index];
-                      return _TemplateCard(
-                        name: template['name'],
-                        category: template['category'],
-                        image: template['image'],
-                        description: template['description'],
-                        onTap: () {
-                          // Navigate to resume builder with this template
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Selected: ${template['name']}'),
-                              backgroundColor: const Color(0xFF0e5bbc),
-                            ),
-                          );
-                        },
-                      );
-                    },
+                  );
+                }
+
+                return GridView.builder(
+                  padding: const EdgeInsets.all(20),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.7,
                   ),
+                  itemCount: filteredTemplates.length,
+                  itemBuilder: (context, index) {
+                    final template = filteredTemplates[index];
+                    return _TemplateCard(
+                      name: template['name'],
+                      category: template['category'],
+                      imageUrl: template['imageUrl'],
+                      description: template['description'],
+                      onTap: () {
+                        // Navigate to resume preview with template ID
+                        Navigator.of(context).pushNamed(
+                          '/resume-preview',
+                          arguments: template['id'],
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -210,14 +227,14 @@ class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
 class _TemplateCard extends StatelessWidget {
   final String name;
   final String category;
-  final String image;
+  final String imageUrl;
   final String description;
   final VoidCallback onTap;
 
   const _TemplateCard({
     required this.name,
     required this.category,
-    required this.image,
+    required this.imageUrl,
     required this.description,
     required this.onTap,
   });
@@ -260,33 +277,65 @@ class _TemplateCard extends StatelessWidget {
                       topLeft: Radius.circular(16),
                       topRight: Radius.circular(16),
                     ),
-                    child: Image.asset(
-                      image,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        // Placeholder when image is not available
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.description,
-                                size: 48,
-                                color: Colors.grey.shade400,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Preview',
-                                style: TextStyle(
-                                  color: Colors.grey.shade500,
-                                  fontSize: 12,
+                    child: imageUrl.isNotEmpty
+                        ? Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  color: const Color(0xFF0e5bbc),
                                 ),
-                              ),
-                            ],
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.broken_image,
+                                      size: 48,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Image error',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade500,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.description,
+                                  size: 48,
+                                  color: Colors.grey.shade400,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Preview',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        );
-                      },
-                    ),
                   ),
                 ),
               ),

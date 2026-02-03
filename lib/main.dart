@@ -6,6 +6,7 @@ import 'screens/profile/profile_info_screen.dart';
 import 'screens/login/login_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/templates/template_selection_screen.dart';
+import 'screens/resume/resume_preview_screen.dart';
 
 //logo color - #0e5bbc , bg color - fromARGB(255, 248, 250, 255),
 
@@ -46,6 +47,15 @@ class MyApp extends StatelessWidget {
         ProfileInfoScreen.routeName: (_) => const ProfileInfoScreen(),
         SettingsScreen.routeName: (_) => const SettingsScreen(),
         TemplateSelectionScreen.routeName: (_) => const TemplateSelectionScreen(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == ResumePreviewScreen.routeName) {
+          final templateId = settings.arguments as String? ?? 'default';
+          return MaterialPageRoute(
+            builder: (_) => ResumePreviewScreen(templateId: templateId),
+          );
+        }
+        return null;
       },
     );
   }
