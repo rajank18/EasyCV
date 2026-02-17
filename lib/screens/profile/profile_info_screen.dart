@@ -189,6 +189,7 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     if (_referencesController.text.trim().isEmpty) {
       return 'References are required';
     }
+    return null;
   }
 
   @override
