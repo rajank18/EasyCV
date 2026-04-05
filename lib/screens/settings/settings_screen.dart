@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/notification_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../core/theme/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,8 +17,10 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
   int _selectedIndex = 3; // Settings tab
   bool _isLoading = true;
+  bool _notificationsEnabled = true;
   
   String _userName = '';
   String _userEmail = '';
@@ -158,26 +163,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Color.fromARGB(255, 248, 250, 255),
+        backgroundColor: AppColors.bgPrimary,
         body: Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF0e5bbc),
-          ),
+          child: CircularProgressIndicator(),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 248, 250, 255),
+      backgroundColor: AppColors.bgPrimary,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bgPrimary,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Text(
           'Settings',
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: AppColors.textPrimary,
           ),
         ),
         centerTitle: true,
@@ -191,22 +194,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: AppColors.bgSurface,
+                  borderRadius: BorderRadius.circular(AppRadius.radiusXl),
+                  border: Border.all(color: AppColors.borderSubtle),
+                  boxShadow: AppShadows.shadowSm,
                 ),
                 child: Column(
                   children: [
                     // Profile Image
                     CircleAvatar(
                       radius: 50,
-                      backgroundColor: const Color(0xFF0e5bbc),
+                      backgroundColor: AppColors.accent,
                       backgroundImage: _photoUrl.isNotEmpty
                           ? NetworkImage(_photoUrl)
                           : null,
@@ -228,7 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _userName,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -237,7 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Text(
                       _userEmail,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey.shade600,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -245,18 +243,159 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 24),
               
+              // Notification Settings (Only on Mobile)
+              if (!kIsWeb) Container(
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurface,
+                  borderRadius: BorderRadius.circular(AppRadius.radiusLg),
+                  border: Border.all(color: AppColors.borderSubtle),
+                  boxShadow: AppShadows.shadowSm,
+                ),
+                child: Column(
+                  children: [
+                    // Notification Toggle
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.notifications_active,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                      title: const Text(
+                        'Weekly Resume Reminders',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: const Text('Get notified to update your resume'),
+                      trailing: Switch(
+                        value: _notificationsEnabled,
+                        onChanged: (value) async {
+                          setState(() {
+                            _notificationsEnabled = value;
+                          });
+                          
+                          if (value) {
+                            await _notificationService.scheduleWeeklyNotifications();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Weekly notifications enabled! 📝'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } else {
+                            await _notificationService.cancelAllNotifications();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Notifications disabled'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        activeColor: AppColors.accent,
+                      ),
+                    ),
+                    const Divider(
+                      height: 1,
+                      indent: 16,
+                      endIndent: 16,
+                      color: AppColors.borderSubtle,
+                    ),
+                    
+                    // Test Notification Button
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.notifications_none,
+                          color: Colors.purple.shade700,
+                        ),
+                      ),
+                      title: const Text(
+                        'Test Notification',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: const Text('Send a test notification now'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        await _notificationService.showTestNotification();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Test notification sent! Check your notification bar.'),
+                              backgroundColor: Colors.blue,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    const Divider(
+                      height: 1,
+                      indent: 16,
+                      endIndent: 16,
+                      color: AppColors.borderSubtle,
+                    ),
+                    
+                    // Test Incomplete Profile Notification Button
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.person_outline,
+                          color: Colors.amber.shade700,
+                        ),
+                      ),
+                      title: const Text(
+                        'Test Profile Reminder',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: const Text('Send test profile completion reminder'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        await _notificationService.showTestIncompleteProfileNotification();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Test profile reminder sent! Check your notification bar.'),
+                              backgroundColor: Colors.amber,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              if (!kIsWeb) const SizedBox(height: 24),
+              
               // Account Options
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: AppColors.bgSurface,
+                  borderRadius: BorderRadius.circular(AppRadius.radiusLg),
+                  border: Border.all(color: AppColors.borderSubtle),
+                  boxShadow: AppShadows.shadowSm,
                 ),
                 child: Column(
                   children: [
@@ -283,11 +422,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: _logout,
                     ),
-                    Divider(
+                    const Divider(
                       height: 1,
                       indent: 16,
                       endIndent: 16,
-                      color: Colors.grey.shade200,
+                      color: AppColors.borderSubtle,
                     ),
                     
                     // Delete Account Option
@@ -323,7 +462,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text(
                 'EasyCV v1.0.0',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade500,
+                  color: AppColors.textTertiary,
                 ),
               ),
             ],
@@ -331,31 +470,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
+        decoration: const BoxDecoration(
+          color: AppColors.bgPrimary,
+          border: Border(top: BorderSide(color: AppColors.borderSubtle)),
         ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
+        child: SafeArea(
+          top: false,
           child: BottomNavigationBar(
             currentIndex: _selectedIndex,
             onTap: (index) {
               if (index != _selectedIndex) {
                 if (index == 0) {
                   Navigator.pushReplacementNamed(context, '/dashboard');
+                } else if (index == 1) {
+                  Navigator.pushReplacementNamed(context, '/ats-checker');
                 } else if (index == 2) {
                   Navigator.pushReplacementNamed(context, '/profile-info');
                 }
@@ -364,11 +492,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 });
               }
             },
-            selectedItemColor: const Color(0xFF0e5bbc),
-            unselectedItemColor: const Color.fromARGB(255, 80, 80, 80),
-            backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-            elevation: 0,
-            type: BottomNavigationBarType.fixed,
             items: const [
               BottomNavigationBarItem(
                 icon: Icon(Icons.home_outlined),
@@ -376,9 +499,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: 'Home',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.explore_outlined),
-                activeIcon: Icon(Icons.explore),
-                label: 'Explore',
+                icon: Icon(Icons.document_scanner_outlined),
+                activeIcon: Icon(Icons.document_scanner),
+                label: 'ATS',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline),

@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
+import '../../core/theme/app_animations.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/pressable_scale.dart';
 
 class LoginScreen extends StatefulWidget {
   static const routeName = '/login';
@@ -14,18 +21,33 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   bool _isLoading = false;
 
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     
     try {
-      // For web, use Firebase's popup-based Google Sign-In
-      final GoogleAuthProvider googleProvider = GoogleAuthProvider();
-      
-      // Sign in with popup (works better on web)
-      final UserCredential userCredential = 
-          await _auth.signInWithPopup(googleProvider);
+      UserCredential userCredential;
+
+      if (kIsWeb) {
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        userCredential = await _auth.signInWithPopup(googleProvider);
+      } else {
+        final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+
+        if (googleUser == null) {
+          return;
+        }
+
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final AuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        userCredential = await _auth.signInWithCredential(credential);
+      }
       
       // Create user document in Firestore if it doesn't exist
       if (userCredential.user != null) {
@@ -77,92 +99,78 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final insets = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 248, 250, 255),
+      resizeToAvoidBottomInset: true,
+      backgroundColor: AppColors.bgPrimary,
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo
-                Image.asset(
-                  'assets/images/logowithoutbg.png',
-                  height: 200,
-                ),
-                const SizedBox(height: 40),
-                
-                // Title
-                const Text(
-                  'Welcome to EasyCV',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0e5bbc),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Create ATS-friendly resumes in minutes',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 60),
-                
-                // Google Sign In Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _signInWithGoogle,
-                    icon: _isLoading 
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Image.asset(
-                            'assets/images/google_icon.png',
-                            height: 24,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.login, color: Colors.white),
-                          ),
-                    label: Text(
-                      _isLoading ? 'Signing in...' : 'Continue with Google',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+        child: AnimatedPadding(
+          duration: AppAnimations.dur300,
+          curve: AppAnimations.smoothOut,
+          padding: EdgeInsets.only(bottom: insets),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 48),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 48),
+                    Text(
+                      'EasyCV',
+                      style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 38),
+                    )
+                        .animate()
+                        .fadeIn(duration: AppAnimations.dur500)
+                        .slideY(begin: -0.1, curve: AppAnimations.smoothOut),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sign in with Google to continue.',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ).animate().fadeIn(duration: AppAnimations.dur400, delay: AppAnimations.dur100),
+                    const SizedBox(height: 44),
+                    PressableScale(
+                      onTap: _isLoading ? null : _signInWithGoogle,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _signInWithGoogle,
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Image.asset(
+                                  'assets/images/google_icon.png',
+                                  height: 18,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const Icon(Icons.g_mobiledata);
+                                  },
+                                ),
+                          label: Text(_isLoading ? 'Signing in...' : 'Continue with Google'),
+                        ),
+                      ),
+                    )
+                        .animate()
+                        .fadeIn(duration: AppAnimations.dur300, delay: AppAnimations.dur300)
+                        .slideY(begin: 0.08),
+                    const Spacer(),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Center(
+                        child: Text(
+                          'By continuing, you agree to use Google authentication.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0e5bbc),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                
-                // Terms and Privacy
-                const Text(
-                  'By continuing, you agree to our Terms of Service\nand Privacy Policy',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+              ),
             ),
           ),
         ),

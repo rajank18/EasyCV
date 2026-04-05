@@ -1,0 +1,646 @@
+You are the lead UI/UX engineer at an award-winning design studio.
+Your client is EasyCV — a Flutter resume builder app. 
+
+THE EXISTING SCREENS (do NOT change any functionality):
+  1. Onboarding Screen
+  2. Login Screen  
+  3. Home Screen — Create New Resume + Recently Created Resumes
+  4. ATS Score Checker Screen
+  5. Profile Screen — form-based input (Education, Experience, etc.)
+  6. Settings Screen — name display, logout, notification toggle
+
+Your mission: Keep every feature exactly as-is. Only transform 
+the visual UI, typography, colors, spacing, and animations.
+Make this app worthy of a Google Material Design Award and an 
+Apple App Store "App of the Day" feature.
+
+Aesthetic direction: "Calm Minimal Luxury"
+Think: Linear.app + Craft.do + Apple Notes + Notion at its finest.
+NOT flashy. NOT gradient-heavy. NOT over-animated.
+Precise. Breathing. Intentional. Memorable.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — ADD THESE FLUTTER DEPENDENCIES FIRST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In pubspec.yaml, add:
+
+  flutter_animate: ^4.5.0       # Staggered, chained animations
+  animations: ^2.0.11           # Container transform, shared axis
+  shimmer: ^3.0.0               # Skeleton loading states
+  google_fonts: ^6.2.1          # DM Sans + DM Serif Display
+  lottie: ^3.1.2                # Micro-animation for empty states
+  smooth_page_indicator: ^1.1.0 # Onboarding dots
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — GLOBAL DESIGN SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create lib/core/theme/app_theme.dart with everything below:
+
+─── COLOR PALETTE ───────────────────────────────
+
+Light Mode:
+  bgPrimary:      #FAFAF8   ← warm white, never cold #FFFFFF
+  bgSurface:      #F3F2EF   ← card/input backgrounds
+  bgSurfaceRaised:#ECEAE6   ← elevated cards, chips
+  borderSubtle:   #E4E2DD   ← dividers, input borders
+  borderMid:      #C8C5BE   ← focused input borders
+  textPrimary:    #0D0D0D   ← headings, important labels
+  textSecondary:  #5C5B57   ← body text, descriptions
+  textTertiary:   #9C9A95   ← hints, captions, placeholders
+  accent:         #1A1A2E   ← deep midnight navy, used sparingly
+  accentTint:     #EBEBF5   ← accent background wash
+  accentMid:      #3D3D6B   ← accent hover state
+  success:        #1A7A58   ← ATS score high (70–100)
+  successTint:    #E8F5F0
+  warning:        #C47A1E   ← ATS score mid (40–69)
+  warningTint:    #FDF3E4
+  danger:         #B83232   ← ATS score low (0–39)
+  dangerTint:     #FCEAEA
+
+Dark Mode:
+  bgPrimary:      #0E0E0E
+  bgSurface:      #181818
+  bgSurfaceRaised:#212121
+  borderSubtle:   #2C2C2C
+  borderMid:      #404040
+  textPrimary:    #F0EDE8
+  textSecondary:  #A8A5A0
+  textTertiary:   #666460
+  accent:         #7B7FD4   ← lighter in dark mode for contrast
+  accentTint:     #1C1C2E
+
+─── TYPOGRAPHY ──────────────────────────────────
+
+Fonts (import via google_fonts package):
+  Display: DM Serif Display  ← editorial, elegant, has character
+  UI:      DM Sans           ← clean, geometric, highly readable
+  Numbers: JetBrains Mono    ← for scores, percentages, counters
+
+Text Styles (define as static TextStyle constants):
+  displayLarge:  DM Serif Display, 36sp, w400, textPrimary, h1.15
+  displayMedium: DM Serif Display, 28sp, w400, textPrimary, h1.2
+  displaySmall:  DM Serif Display, 22sp, w400, textPrimary, h1.25
+  titleLarge:    DM Sans, 18sp, w600, textPrimary, h1.3
+  titleMedium:   DM Sans, 16sp, w600, textPrimary, h1.35
+  titleSmall:    DM Sans, 14sp, w600, textPrimary, h1.4
+  bodyLarge:     DM Sans, 15sp, w400, textSecondary, h1.5
+  bodyMedium:    DM Sans, 13sp, w400, textSecondary, h1.5
+  bodySmall:     DM Sans, 12sp, w400, textTertiary, h1.5
+  labelLarge:    DM Sans, 11sp, w500, textTertiary, ls+1.2, UPPERCASE
+  labelSmall:    DM Sans, 10sp, w500, textTertiary, ls+1.5, UPPERCASE
+  monoLarge:     JetBrains Mono, 28sp, w700, textPrimary
+  monoMedium:    JetBrains Mono, 18sp, w600, textPrimary
+  monoSmall:     JetBrains Mono, 13sp, w500, textSecondary
+
+─── SPACING — strict 8pt grid ───────────────────
+
+  sp4:  4.0    sp8:  8.0    sp12: 12.0   sp16: 16.0
+  sp20: 20.0   sp24: 24.0   sp32: 32.0   sp40: 40.0
+  sp48: 48.0   sp64: 64.0   sp80: 80.0
+
+─── BORDER RADIUS ───────────────────────────────
+
+  radiusSm:   8.0   ← chips, small tags, input fields
+  radiusMd:  12.0   ← buttons, smaller cards
+  radiusLg:  16.0   ← standard cards, bottom sheets
+  radiusXl:  24.0   ← large cards, resume preview cards
+  radius2xl: 32.0   ← hero elements, modal sheets
+  radiusPill: 999.0 ← badges, score pills
+
+─── SHADOWS — warm, barely-there ────────────────
+
+  shadowSm:
+    BoxShadow(color: #0D0D0D at 5% opacity, blur 4, offset 0,1)
+  shadowMd:
+    BoxShadow(color: #0D0D0D at 7% opacity, blur 12, offset 0,4)
+    BoxShadow(color: #0D0D0D at 4% opacity, blur 4,  offset 0,2)
+  shadowLg:
+    BoxShadow(color: #0D0D0D at 9% opacity,  blur 24, offset 0,8)
+    BoxShadow(color: #0D0D0D at 5% opacity,  blur 8,  offset 0,4)
+  shadowXl:
+    BoxShadow(color: #0D0D0D at 12% opacity, blur 48, offset 0,16)
+    BoxShadow(color: #0D0D0D at 6% opacity,  blur 12, offset 0,6)
+
+─── ANIMATION CONSTANTS ─────────────────────────
+
+Create lib/core/theme/app_animations.dart:
+
+  // Durations
+  static const dur50   = Duration(milliseconds: 50);
+  static const dur100  = Duration(milliseconds: 100);
+  static const dur200  = Duration(milliseconds: 200);
+  static const dur300  = Duration(milliseconds: 300);
+  static const dur400  = Duration(milliseconds: 400);
+  static const dur500  = Duration(milliseconds: 500);
+  static const dur600  = Duration(milliseconds: 600);
+  static const dur900  = Duration(milliseconds: 900);
+  static const dur1200 = Duration(milliseconds: 1200);
+
+  // Curves
+  static const smoothOut    = Cubic(0.23, 1.00, 0.32, 1.00);
+  static const springSnappy = Cubic(0.34, 1.56, 0.64, 1.00);
+  static const gentleFade   = Cubic(0.40, 0.00, 0.20, 1.00);
+  static const pressIn      = Cubic(0.40, 0.00, 1.00, 1.00);
+  static const easeOutBack  = Cubic(0.34, 1.56, 0.64, 1.00);
+
+─── REUSABLE COMPONENT STYLES ───────────────────
+
+Primary Button:
+  Height: 52px, full-width, radiusMd
+  Background: textPrimary (ink black)
+  Text: DM Sans 15sp w600, white
+  Padding: horizontal 24px
+  Press animation: scale 0.97 over 100ms pressIn curve,
+                   release back to 1.0 over 200ms smoothOut
+  No elevation. No gradient. Clean.
+
+Secondary Button:
+  Height: 52px, full-width, radiusMd
+  Background: transparent
+  Border: 1.5px borderMid
+  Text: DM Sans 15sp w600, textPrimary
+  Same press animation as primary
+
+Text Button:
+  No background, no border
+  Text: DM Sans 14sp w500, accent color
+  Underline animates in on hover/focus (width: 0→100%, 200ms)
+
+Input Fields:
+  Height: 54px, radiusSm
+  Background: bgSurface
+  Border: 1.5px borderSubtle (default) → 1.5px borderMid (focused)
+           → 1.5px accent (active/typing)
+  Label: floats up on focus (standard Flutter behavior, styled)
+    Floating label: DM Sans 11sp, accent color when active
+    Placeholder: DM Sans 15sp, textTertiary
+  Border color transition: 200ms gentleFade
+  Focus scale: very subtle — container scales 1.0→1.005 on focus
+  Error state: border → danger color, error text fades in below
+
+Cards (standard):
+  Background: bgSurface
+  Border: 1px borderSubtle
+  Radius: radiusLg
+  Shadow: shadowSm (resting) → shadowMd (pressed/hovered)
+  Shadow transition: 200ms
+  Press animation: scale 1.0→0.975 over 150ms pressIn
+
+Section Label style (used on all screens):
+  DM Sans 11sp, w500, textTertiary, UPPERCASE, letterSpacing 1.4
+  No decorative elements — just the text, with 8px bottom margin
+
+Bottom Navigation Bar:
+  Height: 64px + safe area
+  Background: bgPrimary with top border 1px borderSubtle
+  No shadow — border is the separator
+  Active icon: accent color, filled variant
+  Inactive icon: textTertiary, outlined variant
+  Active label: 10sp DM Sans w600 accent
+  Inactive label: 10sp DM Sans w400 textTertiary
+  Tab switch animation: icon scale 0.8→1.0 (200ms springSnappy)
+                        + color tween (200ms)
+  NO indicator pill, NO background highlight — clean
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — SCREEN-BY-SCREEN UI REDESIGN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+──────────────────────────────────────────────────
+SCREEN 1: ONBOARDING
+──────────────────────────────────────────────────
+Layout (PageView, 3 pages):
+  Background: bgPrimary throughout all pages
+  
+  Each page structure (no images — typographic/geometric art):
+    Top 50%: large abstract geometric illustration drawn with 
+             Flutter CustomPainter — simple shapes, no clipart.
+      Page 1: Three overlapping horizontal bars (resume metaphor)
+              Bars in accent, accentTint, borderSubtle colors
+              Slight rotation: -2 degrees, offset composition
+      Page 2: A large circle (bgSurfaceRaised) with a smaller 
+              accent-colored circle overlapping bottom-right
+              Inside: "85" in JetBrains Mono 48sp 
+              (ATS score metaphor — animated counting 0→85)
+      Page 3: Grid of 6 tiny resume-card shapes in 2x3 layout
+              Each slightly different shade of bgSurface→bgSurfaceRaised
+              The word "EasyCV" in DM Serif Display across them diagonally
+    
+    Bottom 50%: content area, left-aligned, padding 32px
+      Overline: labelLarge style, accent color (e.g., "STEP 1 OF 3")
+      Heading: displayMedium (DM Serif Display 28sp)
+      Body: bodyLarge, textSecondary, max 2 lines
+      
+  Bottom bar (fixed across all pages):
+    Page dots: smooth_page_indicator, 
+               style: ExpandingDots, activeDotColor: accent,
+               dotColor: borderMid, dotHeight: 6, dotWidth: 6
+    "Get Started" / "Next" button: primary button style
+    "Skip" text button: top-right corner, textTertiary
+
+Page transition: SharedAxisTransition (horizontal) from 
+                 animations package — NOT default PageView slide.
+                 The geometric art slides while content fades.
+                 Duration: 400ms, curve: smoothOut
+
+Element entrance per page (flutter_animate stagger):
+  Illustration: fadeIn + scale 0.92→1.0, 500ms, easeOutBack, delay 0
+  Overline:     fadeIn + slideY(begin: 0.3), 350ms, smoothOut, delay 150ms  
+  Heading:      fadeIn + slideY(begin: 0.2), 350ms, smoothOut, delay 220ms
+  Body:         fadeIn + slideY(begin: 0.2), 350ms, smoothOut, delay 300ms
+  Button:       fadeIn + slideY(begin: 0.15), 300ms, smoothOut, delay 400ms
+
+──────────────────────────────────────────────────
+SCREEN 2: LOGIN
+──────────────────────────────────────────────────
+Layout:
+  Background: bgPrimary
+  NO card wrapping the form — the form floats directly on background
+  NO logo image — the app name IS the hero
+
+  Top section (40% of screen):
+    Safe area top + 48px padding
+    App wordmark: "EasyCV" in DM Serif Display 38sp, textPrimary
+    Below (8px gap): "Sign in to continue." bodyLarge textSecondary
+    
+  Form section:
+    Top margin: 40px
+    Email input field (full spec from component styles above)
+    16px gap
+    Password input field + show/hide toggle (eye icon, textTertiary)
+    12px gap
+    "Forgot password?" — text button, right-aligned, bodySmall
+    32px gap
+    Primary "Sign In" button
+    24px gap
+    Row: thin borderSubtle line + "or" bodySmall textTertiary + line
+    16px gap
+    Secondary "Continue with Google" button 
+      (Google 'G' logo as leading widget, text: "Continue with Google")
+    
+  Bottom:
+    "Don't have an account? " + "Sign up" accent text button
+    Center-aligned, bodyMedium
+
+Screen entrance animation (stagger, runs once on mount):
+  "EasyCV" wordmark: fadeIn + slideY(begin: -0.1), 500ms, smoothOut
+  Subtitle:         fadeIn, 400ms, delay 150ms
+  Each form field:  fadeIn + slideY(begin: 0.08), 350ms, 
+                    smoothOut, stagger 80ms apart
+  Buttons:          fadeIn + slideY(begin: 0.08), 300ms, delay 500ms
+
+Keyboard appear behavior:
+  Form scrolls up smoothly — use SingleChildScrollView with 
+  resizeToAvoidBottomInset: true + AnimatedPadding on bottom
+
+──────────────────────────────────────────────────
+SCREEN 3: HOME SCREEN
+──────────────────────────────────────────────────
+Layout: CustomScrollView with SliverList
+
+  ── HEADER (not AppBar — custom SliverToBoxAdapter) ──
+  Padding: 20px sides, top safe area + 16px
+  Row:
+    Left column:
+      Greeting: "Good morning," labelLarge style, textTertiary
+                (time-based: morning/afternoon/evening)
+      Name: titleLarge, textPrimary (user's first name)
+    Right: 
+      Avatar circle, 42px diameter
+      Background: accentTint, border: 1.5px accent at 30% opacity
+      Initials: DM Sans 16sp w600, accent color
+      Tap: navigates to Profile (no animation here, just navigate)
+
+  ── SECTION: "YOUR RESUMES" ──
+  24px gap below header
+  Section label ("YOUR RESUMES" in labelLarge style)
+  12px gap
+
+  If no resumes yet — empty state:
+    Center-aligned card (full width, radiusXl, bgSurface, shadowSm)
+    Height: 160px
+    Icon: simple document outline in textTertiary, 32px
+    "No resumes yet" titleSmall textSecondary
+    "Tap + to create your first" bodySmall textTertiary
+    Subtle entrance: fadeIn + scale 0.96→1.0, 400ms
+
+  If resumes exist — horizontal scroll list:
+    Height: 200px
+    First item: "New Resume" creation card
+      Width: 130px, height: 180px, radiusXl
+      Background: bgSurface
+      Border: 1.5px dashed borderMid
+      Center content:
+        Container 40x40, radiusMd, bgSurfaceRaised
+        "+" icon 20px, textTertiary
+        "New" bodySmall textTertiary, 8px below
+      Tap animation: border solid-ifies to accent (200ms),
+                     scale 0.97→1.0 (150ms), then navigate
+
+    Resume cards (existing):
+      Width: 130px, height: 180px, radiusXl
+      Background: bgSurface, shadowSm → shadowMd on press
+      Top 65%: mini resume thumbnail
+        Use RepaintBoundary + Transform.scale(0.3) of the 
+        actual resume widget, clipped to card bounds
+        If no preview: bgSurfaceRaised fill with EasyCV 
+        wordmark in textTertiary centered
+      Bottom 35%: white bgPrimary area
+        Resume name: titleSmall, textPrimary, maxLines 1
+        "Edited 2d ago": bodySmall, textTertiary
+      Press: scale 0.96 over 150ms → navigate
+      Long press: show bottom sheet with Rename/Duplicate/Delete
+
+    List entrance: each card stagger-animates in
+      fadeIn + slideX(begin: 0.15), 350ms, smoothOut
+      Stagger: 60ms per card
+
+  ── SECTION: "ATS SCORE CHECKER" ──
+  32px gap
+  Section label ("TOOLS" in labelLarge style)
+  12px gap
+  
+  Full-width card (radiusLg, bgSurface, shadowSm):
+    Padding: 20px
+    Row:
+      Left: Container 48x48, radiusMd, accentTint bg
+            Document-scan icon 22px, accent color
+      Right of icon (12px gap):
+        "ATS Score Checker" titleSmall textPrimary
+        "Upload your resume PDF" bodySmall textTertiary
+      Far right: chevron-right 20px, textTertiary
+    
+    Press animation: 
+      Background → bgSurfaceRaised (150ms gentleFade)
+      Scale: 1.0→0.985 (100ms pressIn) 
+      Both reverse on release, THEN navigate
+
+  Section entrance (flutter_animate):
+    Section label: fadeIn, 300ms, delay 200ms
+    ATS card:      fadeIn + slideY(begin: 0.06), 350ms, 
+                   smoothOut, delay 280ms
+
+──────────────────────────────────────────────────
+SCREEN 4: ATS SCORE CHECKER
+──────────────────────────────────────────────────
+Layout: SingleChildScrollView, padding 20px
+
+  ── HEADER ──
+  Back arrow (left) + "ATS Checker" in titleLarge (center)
+  Standard navigation style
+
+  ── UPLOAD ZONE ──
+  24px top gap
+  Full-width container, height 180px, radiusXl
+  Background: bgSurface
+  Border: 2px dashed borderMid (default) 
+          → 2px dashed accent (when file selected or drag active)
+  Border animation: color tween 200ms
+  Center content (no file selected):
+    Icon: upload-cloud outline, 32px, textTertiary
+    "Upload Resume PDF" titleSmall textSecondary, 12px below icon
+    "Tap to browse · PDF only" bodySmall textTertiary, 4px below
+  Center content (file selected):
+    Icon: document-check, 28px, success color
+    File name: titleSmall textPrimary, single line ellipsis
+    File size: bodySmall textTertiary
+    Small "×" button (textTertiary) top-right corner of card
+  Entrance: file name + check icon animate in with 
+            fadeIn + scale 0.8→1.0 (300ms springSnappy)
+            replacing upload icon (crossfade 200ms)
+
+  ── ANALYZE BUTTON ──
+  24px gap
+  Primary button "Analyze Resume" (full spec above)
+  Disabled state: 40% opacity, not pressable
+  Loading state: replace button text with Row(
+    SizedBox 16x16 CircularProgressIndicator 
+    (strokeWidth 2, white color) + "  Analyzing..." text
+  )
+
+  ── RESULTS (only visible after scoring) ──
+  Animate in as a whole block: fadeIn + slideY(begin: 0.1), 
+  500ms, smoothOut, after score calculation completes
+
+  Score Hero Card (full width, radiusXl, shadowMd):
+    Background: determined by score:
+      70–100: successTint bg, success border 1px
+      40–69:  warningTint bg, warning border 1px
+      0–39:   dangerTint bg, danger border 1px
+    Padding: 28px
+    Center content:
+      Score number: JetBrains Mono 56sp w700, score color
+        ANIMATED: counts up from 0 to final score
+        Duration: 900ms, curve: smoothOut
+        Use flutter_animate .animate().custom() with Tween
+      "/100" inline: JetBrains Mono 20sp, textTertiary
+      Grade label below: "Excellent" / "Good" / "Fair" / "Needs Work"
+        DM Sans 14sp w500, score color
+      Circular progress ring behind the number:
+        Use CustomPainter, draws arc from 0→score%
+        Arc color: score color, strokeWidth 4, 
+        Background arc: score color at 15% opacity
+        Animation: 0→final in 900ms smoothOut (sync with counter)
+
+  Breakdown Section (below score card, 16px gap):
+    Section label: "SCORE BREAKDOWN" labelLarge
+    12px gap
+    Each category as a row:
+      Category name: bodyMedium textPrimary
+      Score fraction: bodySmall textTertiary right-aligned ("24/30")
+      Full-width thin bar below (height 3px, radiusPill):
+        Background: borderSubtle
+        Fill: score color, width animates 0→(earned/max)%
+        Duration: 600ms smoothOut
+        Stagger: 80ms per row
+        
+  Suggestions Section (below breakdown, 24px gap):
+    Section label: "SUGGESTIONS" labelLarge
+    12px gap
+    Each suggestion as a card (radiusMd, bgSurface, 12px padding):
+      Left: 6px wide accent-colored left border on container
+      Text: bodyMedium textSecondary
+      Stagger entrance: fadeIn + slideX(begin: -0.05), 
+                        300ms, stagger 60ms
+
+──────────────────────────────────────────────────
+SCREEN 5: PROFILE SCREEN (form-based data input)
+──────────────────────────────────────────────────
+Layout: CustomScrollView
+
+  ── HEADER (SliverAppBar, pinned) ──
+  Background: bgPrimary
+  Title: "Profile" titleLarge textPrimary, left-aligned
+  Elevation 0, bottom border 1px borderSubtle appears 
+  only when scrolled (animate in/out, 200ms)
+
+  ── AVATAR / NAME SECTION (SliverToBoxAdapter) ──
+  Center-aligned, padding top 24px
+  Avatar: 80px circle, accentTint bg, accent initials
+  Name: displaySmall (DM Serif Display 22sp), textPrimary, 8px below
+  Email: bodyMedium, textTertiary, 4px below
+  "Edit Photo" text button, accent color, 12px below
+
+  ── FORM SECTIONS ──
+  Each logical group (Personal Info, Experience, Education, Skills):
+  
+  Group container style:
+    32px top gap
+    Section label (labelLarge) 
+    12px gap
+    Thin card wrapping ALL fields in group:
+      Background: bgSurface
+      Radius: radiusLg
+      Border: 1px borderSubtle
+      Shadow: shadowSm
+      Each field inside separated by 1px borderSubtle divider
+      (no divider after last field)
+      Fields use input style from component system above
+      Each field: 54px min-height, 16px horizontal padding
+      Multiline fields (bio, summary): min 3 lines, expand naturally
+
+  Section entrance (on first build, stagger):
+    Each group: fadeIn + slideY(begin: 0.05), 350ms, smoothOut
+    Stagger: 100ms per group
+
+  ── SAVE BUTTON ──
+  Sticky at bottom (above nav bar):
+    Backdrop: thin blurred bgPrimary (use BackdropFilter blur 8)
+              + top border 1px borderSubtle
+    Padding: 16px sides, 12px vertical
+    Primary "Save Changes" button (full width)
+    Button disabled when no changes made (40% opacity)
+    On save success: button briefly shows checkmark icon 
+    with "Saved" text (200ms crossfade, 1.5s duration, 
+    then crossfade back)
+
+──────────────────────────────────────────────────
+SCREEN 6: SETTINGS SCREEN
+──────────────────────────────────────────────────
+Layout: CustomScrollView
+
+  ── HEADER ──
+  Same pinned SliverAppBar style as Profile
+  Title: "Settings"
+
+  ── USER INFO CARD ──
+  24px top gap, full-width card (radiusXl, bgSurface, shadowSm):
+    Padding: 20px
+    Row:
+      Avatar: 48px, same style as home screen
+      Column:
+        Name: titleMedium textPrimary
+        Email: bodySmall textTertiary
+      Chevron-right: textTertiary (taps to Profile screen)
+
+  ── SETTINGS GROUPS ──
+  Each group: 24px gap + section label + card wrapper
+  (same card style as Profile form groups)
+
+  Row item style (each setting):
+    Height: 52px
+    Padding: 16px horizontal
+    Row: icon (20px, textTertiary) + label (bodyMedium textPrimary) 
+         + right widget
+    Right widget variants:
+      Toggle: CupertinoSwitch styled with accent color (active)
+              and borderMid (inactive thumb track)
+              Toggle animation: native iOS smooth
+      Chevron: chevron-right 16px, textTertiary
+      Destructive text: "Log out" in danger color (no icon)
+    Divider: 1px borderSubtle, inset 52px from left (after icon)
+    Press ripple: REPLACE with scale 0.99 + bgSurfaceRaised 
+                  background flash, 150ms — no Material ripple
+
+  Groups:
+    "ACCOUNT": Notifications toggle, Change Password (chevron)
+    "APP": Dark Mode toggle, (any other existing settings)
+    "DANGER ZONE": Log Out (danger color, no icon, no chevron)
+
+  Log out press behavior:
+    Show Modal Bottom Sheet (radiusXl top corners):
+      "Log out?" displaySmall 
+      "You'll need to sign in again." bodyLarge textSecondary
+      16px gap
+      Full-width danger-colored primary button "Log Out"
+        (background: danger, text: white)
+      16px gap
+      Full-width secondary button "Cancel"
+      Bottom sheet entrance: slide up + fade, 350ms smoothOut
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — NAVIGATION TRANSITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace all default push/pop transitions. 
+Use animations package for ALL routes:
+
+Standard forward navigation (push):
+  SharedAxisTransition, axis: horizontal
+  Duration: 350ms, curve: smoothOut
+  The incoming screen slides in from right with fade
+  The outgoing screen slides slightly left with fade
+
+Back navigation (pop):
+  Same SharedAxisTransition reversed
+  Feels physical — like real pages
+
+Modal/bottom sheet screens:
+  SharedAxisTransition, axis: vertical (slide up from bottom)
+
+Bottom nav tab switching:
+  FadeThroughTransition from animations package
+  Duration: 250ms — content fades out then fades in
+  No sliding on tab switch — only fade
+  The tab icon animation handles the directional feel
+
+Home → ATS Checker card:
+  Use OpenContainer from animations package
+  The ATS card container EXPANDS into the full screen
+  Duration: 400ms, curve: smoothOut
+  This is the most premium transition in the whole app
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — MICRO-INTERACTIONS CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every single one of these must be implemented:
+
+[ ] ALL buttons: scale 0.97 on press, spring back on release
+[ ] ALL cards: scale 0.975 + shadow decrease on press
+[ ] Input fields: border color animates on focus/blur (200ms)
+[ ] Input fields: floating label smoothly rises (Flutter built-in)
+[ ] Toggle switches: smooth CupertinoSwitch animation
+[ ] Bottom nav icons: scale + color tween on tab select
+[ ] ATS score counter: animates from 0 to value (900ms)
+[ ] ATS progress bars: fill width animates on result reveal
+[ ] Onboarding page indicator: ExpandingDots animation
+[ ] Avatar: slight scale on tap (0.95, 100ms spring back)
+[ ] Resume cards: shadowSm → shadowMd on press (200ms)
+[ ] "New Resume" card: dashed border → solid accent on tap
+[ ] Settings rows: subtle bg flash on press (not ripple)
+[ ] Save button: checkmark crossfade on success
+[ ] Score card: colored border pulses once on score reveal
+    (border opacity 1→0.4→1, 600ms, runs once)
+[ ] Empty state: gentle float animation (translateY 0→-6→0, 
+    3s, loop, easeInOut) — shows life without being annoying
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6 — FINAL QUALITY RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] ZERO hardcoded colors anywhere — only theme tokens
+[ ] ZERO hardcoded TextStyle anywhere — only named styles
+[ ] ZERO default Material ripple effects anywhere
+[ ] ZERO AppBar with elevation shadow (use border instead)
+[ ] ZERO white #FFFFFF backgrounds — always bgPrimary #FAFAF8
+[ ] ZERO animations above 600ms except the score counter
+[ ] Dark mode: ALL screens must look equally polished
+[ ] Safe area: respected on ALL screens top and bottom
+[ ] Keyboard: NEVER obscures form fields — always scrolls
+[ ] Loading states: ALL async actions show skeleton or 
+    spinner — never a frozen UI
+[ ] Error states: inline under fields, never harsh red boxes
+[ ] The app should feel like it cost $10,000 to design

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../services/resume_template_data.dart';
 
 class TemplateSelectionScreen extends StatefulWidget {
   const TemplateSelectionScreen({super.key});
@@ -13,34 +14,16 @@ class TemplateSelectionScreen extends StatefulWidget {
 class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
   String _selectedCategory = 'All';
 
-  final List<String> _categories = [
-    'All',
-    'Software Engineer',
-    'Data Science',
-    'HR',
-    'Marketing',
-    'Design',
-    'Business',
-    'Healthcare',
-  ];
+  List<String> get _categories => [
+        'All',
+        ...kResumeTemplates.map((t) => t.role).toSet(),
+      ];
 
-  List<Map<String, dynamic>> _filterTemplates(List<DocumentSnapshot> docs) {
-    final templates = docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      return {
-        'id': data['id'] ?? doc.id,
-        'name': data['name'] ?? 'Untitled Template',
-        'category': data['category'] ?? 'General',
-        'imageUrl': data['imageUrl'] ?? '',
-        'description': data['description'] ?? '',
-        'isActive': data['isActive'] ?? true,
-      };
-    }).where((template) => template['isActive'] == true).toList();
-
+  List<ResumeTemplateDefinition> get _filteredTemplates {
     if (_selectedCategory == 'All') {
-      return templates;
+      return kResumeTemplates;
     }
-    return templates.where((t) => t['category'] == _selectedCategory).toList();
+    return kResumeTemplates.where((t) => t.role == _selectedCategory).toList();
   }
 
   @override
@@ -67,7 +50,17 @@ class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
       ),
       body: Column(
         children: [
-          // Category Filter
+          Container(
+            width: double.infinity,
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+            child: Text(
+              'Select a template and tap "Use Template" to preview and export PDF.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.black54,
+              ),
+            ),
+          ),
           Container(
             height: 60,
             color: Colors.white,
@@ -78,13 +71,13 @@ class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
               itemBuilder: (context, index) {
                 final category = _categories[index];
                 final isSelected = category == _selectedCategory;
-                
+
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
                     label: Text(category),
                     selected: isSelected,
-                    onSelected: (selected) {
+                    onSelected: (_) {
                       setState(() {
                         _selectedCategory = category;
                       });
@@ -93,124 +86,36 @@ class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
                     backgroundColor: Colors.grey.shade100,
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : Colors.black87,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.normal,
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                   ),
                 );
               },
             ),
           ),
-          
-          // Templates Grid with StreamBuilder
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('templates')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF0e5bbc),
-                    ),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Colors.red.shade300,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error loading templates',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.description_outlined,
-                          size: 64,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No templates available',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                final filteredTemplates = _filterTemplates(snapshot.data!.docs);
-
-                if (filteredTemplates.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.description_outlined,
-                          size: 64,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No templates in this category',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return GridView.builder(
-                  padding: const EdgeInsets.all(20),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.7,
-                  ),
-                  itemCount: filteredTemplates.length,
-                  itemBuilder: (context, index) {
-                    final template = filteredTemplates[index];
-                    return _TemplateCard(
-                      name: template['name'],
-                      category: template['category'],
-                      imageUrl: template['imageUrl'],
-                      description: template['description'],
-                      onTap: () {
-                        // Navigate to resume preview with template ID
-                        Navigator.of(context).pushNamed(
-                          '/resume-preview',
-                          arguments: template['id'],
-                        );
-                      },
+            child: GridView.builder(
+              padding: const EdgeInsets.all(20),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                mainAxisExtent: 320,
+              ),
+              itemCount: _filteredTemplates.length,
+              itemBuilder: (context, index) {
+                final template = _filteredTemplates[index];
+                return _TemplateCard(
+                  template: template,
+                  onTap: () {
+                    Navigator.of(context).pushNamed(
+                      '/resume-preview',
+                      arguments: template.id,
                     );
                   },
                 );
@@ -223,24 +128,19 @@ class _TemplateSelectionScreenState extends State<TemplateSelectionScreen> {
   }
 }
 
-// Template Card Widget
 class _TemplateCard extends StatelessWidget {
-  final String name;
-  final String category;
-  final String imageUrl;
-  final String description;
+  final ResumeTemplateDefinition template;
   final VoidCallback onTap;
 
   const _TemplateCard({
-    required this.name,
-    required this.category,
-    required this.imageUrl,
-    required this.description,
+    required this.template,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -261,93 +161,66 @@ class _TemplateCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Template Preview Image
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
+              Container(
+                height: 124,
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
                   ),
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
-                    child: imageUrl.isNotEmpty
-                        ? Image.network(
-                            imageUrl,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                  color: const Color(0xFF0e5bbc),
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.broken_image,
-                                      size: 48,
-                                      color: Colors.grey.shade400,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Image error',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade500,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          )
-                        : Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.description,
-                                  size: 48,
-                                  color: Colors.grey.shade400,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Preview',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                  gradient: LinearGradient(
+                    colors: [
+                      template.accent.withOpacity(0.18),
+                      template.accent.withOpacity(0.06),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: template.accent,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'JOHN DOE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: template.accent,
+                        fontSize: 10,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...List.generate(
+                      4,
+                      (i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
+                        child: Container(
+                          width: i.isEven ? 76 : 98,
+                          height: 3.5,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              
-              // Template Info
               Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      name,
+                      template.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -360,30 +233,52 @@ class _TemplateCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
-                        vertical: 4,
+                        vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0e5bbc).withOpacity(0.1),
+                        color: template.accent.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        category,
-                        style: const TextStyle(
+                        template.role,
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF0e5bbc),
+                          color: template.accent,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      description,
+                      template.description,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey.shade600,
                       ),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: onTap,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: template.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          'Use Template',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),

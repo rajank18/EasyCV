@@ -1,6 +1,15 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:animations/animations.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
+import '../../core/theme/app_animations.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/pressable_scale.dart';
+import '../../services/notification_service.dart';
+import '../ats/ats_checker_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -14,196 +23,252 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   int _selectedIndex = 0;
   bool _isLoading = true;
   bool _profileComplete = false;
   String _userName = 'User';
-  
+
   @override
   void initState() {
     super.initState();
     _checkProfileStatus();
   }
-  
+
   Future<void> _checkProfileStatus() async {
     final user = _auth.currentUser;
     if (user == null) {
-      Navigator.of(context).pushReplacementNamed('/login');
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
       return;
     }
-    
+
     try {
       final doc = await _firestore.collection('users').doc(user.uid).get();
-      if (doc.exists) {
-        final data = doc.data();
-        setState(() {
-          _profileComplete = data?['profileComplete'] ?? false;
-          _userName = data?['profileData']?['fullName'] ?? data?['name'] ?? 'User';
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
+      final data = doc.data();
+      final isComplete = data?['profileComplete'] ?? false;
       setState(() {
+        _profileComplete = isComplete;
+        _userName = data?['profileData']?['fullName'] ?? data?['name'] ?? 'User';
         _isLoading = false;
       });
+
+      if (!kIsWeb) {
+        if (!isComplete) {
+          await NotificationService().scheduleDailyIncompleteProfileNotifications();
+        } else {
+          await NotificationService().cancelIncompleteProfileNotifications();
+        }
+      }
+    } catch (_) {
+      setState(() => _isLoading = false);
     }
+  }
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning,';
+    if (hour < 17) return 'Good afternoon,';
+    return 'Good evening,';
+  }
+
+  String get _initials {
+    final parts = _userName.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    if (parts.isEmpty) return 'U';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+
+  void _onTapBottom(int index) {
+    if (index == _selectedIndex) return;
+
+    if (index == 1) {
+      Navigator.pushReplacementNamed(context, ATSCheckerScreen.routeName);
+    } else if (index == 2) {
+      Navigator.pushReplacementNamed(context, '/profile-info');
+    } else if (index == 3) {
+      Navigator.pushReplacementNamed(context, '/settings');
+    }
+
+    setState(() => _selectedIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Color.fromARGB(255, 249, 251, 255),
-        body: Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF0e5bbc),
-          ),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 249, 251, 255),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Greeting
-                Text(
-                  'Hey, $_userName',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                
-                // Profile incomplete warning
-                if (!_profileComplete) _ProfileIncompleteCard(),
-                if (!_profileComplete) const SizedBox(height: 24),
-                
-                // Create New Resume Card
-                _CreateNewResumeCard(profileComplete: _profileComplete),
-                const SizedBox(height: 32),
-                
-                // Past Resumes Section
-                Text(
-                  'Your Resumes',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _PastResumesSection(userId: _auth.currentUser?.uid ?? ''),
-                const SizedBox(height: 32),
-                
-                // Explore Themes Section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Explore Resume Themes',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    _ThemeCarouselControls(),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _ExploreThemesSection(),
-                const SizedBox(height: 80),
-              ],
-            ),
-          ),
+      backgroundColor: AppColors.bgPrimary,
+      floatingActionButton: PressableScale(
+        onTap: _profileComplete
+            ? () => Navigator.of(context).pushNamed('/template-selection')
+            : () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please complete your profile first')),
+                );
+              },
+        child: FloatingActionButton(
+          elevation: 0,
+          backgroundColor: AppColors.textPrimary,
+          foregroundColor: AppColors.bgPrimary,
+          onPressed: _profileComplete
+              ? () => Navigator.of(context).pushNamed('/template-selection')
+              : () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please complete your profile first')),
+                  );
+                },
+          child: const Icon(Icons.add),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _profileComplete ? () {
-          // Navigate to template selection
-          Navigator.of(context).pushNamed('/template-selection');
-        } : () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please complete your profile first'),
-              backgroundColor: Colors.orange,
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _greeting.toUpperCase(),
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _userName,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ],
+                          ),
+                        ),
+                        PressableScale(
+                          scale: 0.95,
+                          onTap: () => Navigator.of(context).pushNamed('/profile-info'),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: AppColors.accentTint,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.accent.withOpacity(0.3), width: 1.5),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _initials,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppColors.accent),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ).animate().fadeIn(duration: AppAnimations.dur300),
+                    const SizedBox(height: 24),
+                    Text('YOUR RESUMES', style: Theme.of(context).textTheme.labelLarge),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
             ),
-          );
-        },
-        backgroundColor: const Color(0xFF0e5bbc),
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _ResumesStrip(profileComplete: _profileComplete, userId: _auth.currentUser?.uid ?? ''),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 32, 20, 80),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('TOOLS', style: Theme.of(context).textTheme.labelLarge),
+                    const SizedBox(height: 12),
+                    OpenContainer(
+                      closedElevation: 0,
+                      openElevation: 0,
+                      transitionDuration: AppAnimations.dur400,
+                      closedColor: Colors.transparent,
+                      openColor: AppColors.bgPrimary,
+                      openBuilder: (_, __) => const ATSCheckerScreen(),
+                      closedBuilder: (_, openContainer) {
+                        return PressableScale(
+                          onTap: openContainer,
+                          scale: 0.985,
+                          child: AnimatedContainer(
+                            duration: AppAnimations.dur200,
+                            curve: AppAnimations.gentleFade,
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: AppColors.bgSurface,
+                              borderRadius: BorderRadius.circular(AppRadius.radiusLg),
+                              border: Border.all(color: AppColors.borderSubtle),
+                              boxShadow: AppShadows.shadowSm,
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accentTint,
+                                    borderRadius: BorderRadius.circular(AppRadius.radiusMd),
+                                  ),
+                                  child: const Icon(Icons.document_scanner_outlined, color: AppColors.accent),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('ATS Score Checker', style: Theme.of(context).textTheme.titleSmall),
+                                      const SizedBox(height: 2),
+                                      Text('Upload your resume PDF', style: Theme.of(context).textTheme.bodySmall),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                        .animate()
+                        .fadeIn(duration: AppAnimations.dur300, delay: AppAnimations.dur200)
+                        .slideY(begin: 0.06),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.bgPrimary,
+          border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+        ),
+        child: SafeArea(
+          top: false,
           child: BottomNavigationBar(
             currentIndex: _selectedIndex,
-            onTap: (index) {
-              setState(() {
-                _selectedIndex = index;
-              });
-              // Handle navigation based on index
-              if (index == 2) {
-                Navigator.pushNamed(context, '/profile-info');
-              } else if (index == 3) {
-                Navigator.pushNamed(context, '/settings');
-              }
-              // if (index == 1) Navigator.pushNamed(context, '/explore');
-            },
-            selectedItemColor: const Color(0xFF0e5bbc),
-            unselectedItemColor: const Color.fromARGB(255, 80, 80, 80),
-            backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-            elevation: 0,
-            type: BottomNavigationBarType.fixed,
+            onTap: _onTapBottom,
             items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home_outlined),
-                activeIcon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.explore_outlined),
-                activeIcon: Icon(Icons.explore),
-                label: 'Explore',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline),
-                activeIcon: Icon(Icons.person),
-                label: 'Profile',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.settings_outlined),
-                activeIcon: Icon(Icons.settings),
-                label: 'Settings',
-              ),
+              BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
+              BottomNavigationBarItem(icon: Icon(Icons.document_scanner_outlined), activeIcon: Icon(Icons.document_scanner), label: 'ATS'),
+              BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
+              BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: 'Settings'),
             ],
           ),
         ),
@@ -212,154 +277,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// Profile Incomplete Warning Card
-class _ProfileIncompleteCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade300, width: 2),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 32),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Complete Your Profile',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Please complete your profile to create resumes',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.orange.shade800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pushNamed('/profile-info');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange.shade700,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('Complete'),
-          ),
-        ],
-      ),
-    );
-  }
-}
+class _ResumesStrip extends StatelessWidget {
+  const _ResumesStrip({required this.profileComplete, required this.userId});
 
-// Create New Resume Card Widget
-class _CreateNewResumeCard extends StatelessWidget {
   final bool profileComplete;
-  
-  const _CreateNewResumeCard({this.profileComplete = false});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0e5bbc), Color(0xFF1976d2)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: profileComplete ? () {
-            // Navigate to template selection
-            Navigator.of(context).pushNamed('/template-selection');
-          } : () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Please complete your profile first'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Create New Resume',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Start building your professional resume',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.white.withOpacity(0.9),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.add,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Past Resumes Section
-class _PastResumesSection extends StatelessWidget {
   final String userId;
-  
-  const _PastResumesSection({required this.userId});
-  
+
   @override
   Widget build(BuildContext context) {
     if (userId.isEmpty) {
-      return _EmptyResumesWidget();
+      return const _EmptyResumes();
     }
-    
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
@@ -369,112 +298,184 @@ class _PastResumesSection extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32.0),
-              child: CircularProgressIndicator(
-                color: Color(0xFF0e5bbc),
-              ),
-            ),
-          );
-        }
-        
-        if (snapshot.hasError) {
-          return Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.red.shade300),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Error loading resumes',
-                    style: TextStyle(color: Colors.red.shade600),
+          return SizedBox(
+            height: 200,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: 3,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, __) {
+                return Container(
+                  width: 130,
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurface,
+                    borderRadius: BorderRadius.circular(AppRadius.radiusXl),
+                    border: Border.all(color: AppColors.borderSubtle),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           );
         }
-        
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _EmptyResumesWidget();
+
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const _EmptyResumes();
         }
-        
-        return Column(
-          children: snapshot.data!.docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return _ResumeCard(
-              resumeId: doc.id,
-              title: data['title'] ?? 'Untitled Resume',
-              date: _formatDate(data['createdAt']),
-              atsScore: data['atsScore'] ?? 0,
-              templateType: data['templateType'] ?? 'default',
-            );
-          }).toList(),
+
+        return SizedBox(
+          height: 200,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: docs.length + 1,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return _NewResumeCard(profileComplete: profileComplete);
+              }
+              final data = docs[index - 1].data() as Map<String, dynamic>;
+              final title = data['title']?.toString() ?? 'Untitled Resume';
+              final ats = (data['atsScore'] as num?)?.toInt() ?? 0;
+              return _ResumeItemCard(
+                title: title,
+                atsScore: ats,
+                editedText: _dateText(data['createdAt']),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Opening resume: $title')),
+                  );
+                },
+                onLongPress: () => _showResumeSheet(context, docs[index - 1].id, title),
+              ).animate().fadeIn(duration: AppAnimations.dur300, delay: Duration(milliseconds: 60 * index)).slideX(begin: 0.15);
+            },
+          ),
         );
       },
     );
   }
-  
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Just now';
-    try {
-      final date = (timestamp as Timestamp).toDate();
-      final now = DateTime.now();
-      final difference = now.difference(date);
-      
-      if (difference.inDays == 0) {
-        return 'Today';
-      } else if (difference.inDays == 1) {
-        return 'Yesterday';
-      } else if (difference.inDays < 7) {
-        return '${difference.inDays} days ago';
-      } else {
-        return '${date.day}/${date.month}/${date.year}';
-      }
-    } catch (e) {
-      return 'Unknown';
-    }
+
+  String _dateText(dynamic timestamp) {
+    if (timestamp is! Timestamp) return 'Edited recently';
+    final d = DateTime.now().difference(timestamp.toDate());
+    if (d.inDays <= 0) return 'Edited today';
+    if (d.inDays == 1) return 'Edited 1d ago';
+    return 'Edited ${d.inDays}d ago';
+  }
+
+  Future<void> _showResumeSheet(BuildContext context, String id, String title) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.bgPrimary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.radiusXl)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 14),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Rename'),
+                onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Duplicate'),
+                onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Delete', style: TextStyle(color: AppColors.danger)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final userId = FirebaseAuth.instance.currentUser?.uid;
+                  if (userId == null) return;
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(userId)
+                      .collection('resumes')
+                      .doc(id)
+                      .delete();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
-// Empty Resumes Widget
-class _EmptyResumesWidget extends StatelessWidget {
+class _EmptyResumes extends StatelessWidget {
+  const _EmptyResumes();
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(32),
+      width: double.infinity,
+      height: 160,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.grey.shade50,
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(AppRadius.radiusXl),
+        border: Border.all(color: AppColors.borderSubtle),
+        boxShadow: AppShadows.shadowSm,
       ),
-      child: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.description_outlined, size: 32, color: AppColors.textTertiary),
+          const SizedBox(height: 10),
+          Text('No resumes yet', style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppColors.textSecondary)),
+          const SizedBox(height: 2),
+          Text('Tap + to create your first', style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    )
+        .animate(onPlay: (controller) => controller.repeat(reverse: true))
+        .moveY(begin: 0, end: -6, duration: const Duration(seconds: 3), curve: Curves.easeInOut);
+  }
+}
+
+class _NewResumeCard extends StatelessWidget {
+  const _NewResumeCard({required this.profileComplete});
+
+  final bool profileComplete;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: profileComplete
+          ? () => Navigator.of(context).pushNamed('/template-selection')
+          : () {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please complete your profile first')));
+            },
+      child: Container(
+        width: 130,
+        height: 180,
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(AppRadius.radiusXl),
+          border: Border.all(color: AppColors.borderMid, width: 1.5),
+        ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade400),
-            const SizedBox(height: 12),
-            Text(
-              'No resumes yet',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.bgSurfaceRaised,
+                borderRadius: BorderRadius.circular(AppRadius.radiusMd),
               ),
+              child: const Icon(Icons.add, color: AppColors.textTertiary),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Create your first resume to get started',
-              style: TextStyle(
-                color: Colors.grey.shade500,
-                fontSize: 14,
-              ),
-            ),
+            const SizedBox(height: 8),
+            Text('New', style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
       ),
@@ -482,402 +483,69 @@ class _EmptyResumesWidget extends StatelessWidget {
   }
 }
 
-// Resume Card Widget
-class _ResumeCard extends StatelessWidget {
-  final String resumeId;
-  final String title;
-  final String date;
-  final int atsScore;
-  final String templateType;
-  
-  const _ResumeCard({
-    required this.resumeId,
+class _ResumeItemCard extends StatelessWidget {
+  const _ResumeItemCard({
     required this.title,
-    required this.date,
+    required this.editedText,
     required this.atsScore,
-    required this.templateType,
+    required this.onTap,
+    required this.onLongPress,
   });
-  
-  Color _getScoreColor() {
-    if (atsScore >= 80) return Colors.green;
-    if (atsScore >= 60) return Colors.orange;
-    return Colors.red;
-  }
-  
+
+  final String title;
+  final String editedText;
+  final int atsScore;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: PressableScale(
+        scale: 0.96,
+        onTap: onTap,
+        child: Container(
+          width: 130,
+          decoration: BoxDecoration(
+            color: AppColors.bgSurface,
+            borderRadius: BorderRadius.circular(AppRadius.radiusXl),
+            border: Border.all(color: AppColors.borderSubtle),
+            boxShadow: AppShadows.shadowSm,
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            // Open resume details/edit
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Opening resume: $title'),
-                backgroundColor: const Color(0xFF0e5bbc),
-              ),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Expanded(
+                flex: 65,
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0e5bbc).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppColors.bgSurfaceRaised,
+                    borderRadius: BorderRadius.circular(AppRadius.radiusMd),
                   ),
-                  child: const Icon(
-                    Icons.description,
-                    color: Color(0xFF0e5bbc),
-                    size: 24,
-                  ),
+                  alignment: Alignment.center,
+                  child: Text('EasyCV', style: Theme.of(context).textTheme.bodySmall),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
+              ),
+              Expanded(
+                flex: 35,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600),
-                          const SizedBox(width: 4),
-                          Text(
-                            date,
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Icon(Icons.grid_view, size: 14, color: Colors.grey.shade600),
-                          const SizedBox(width: 4),
-                          Text(
-                            templateType,
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
+                      Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
+                      Text(editedText, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+                      if (atsScore > 0)
+                        Text('ATS $atsScore', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.success)),
                     ],
                   ),
                 ),
-                if (atsScore > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _getScoreColor().withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _getScoreColor(), width: 1.5),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.speed, size: 16, color: _getScoreColor()),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$atsScore',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: _getScoreColor(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      // Edit resume
-                    } else if (value == 'delete') {
-                      _deleteResume(context);
-                    } else if (value == 'download') {
-                      // Download resume
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Download feature coming soon!'),
-                          backgroundColor: Color(0xFF0e5bbc),
-                        ),
-                      );
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 20),
-                          SizedBox(width: 12),
-                          Text('Edit'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'download',
-                      child: Row(
-                        children: [
-                          Icon(Icons.download, size: 20),
-                          SizedBox(width: 12),
-                          Text('Download'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, size: 20, color: Colors.red),
-                          SizedBox(width: 12),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-  
-  Future<void> _deleteResume(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Resume'),
-        content: Text('Are you sure you want to delete "$title"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        final userId = FirebaseAuth.instance.currentUser?.uid;
-        if (userId != null) {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .collection('resumes')
-              .doc(resumeId)
-              .delete();
-          
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Resume deleted successfully'),
-                backgroundColor: Colors.red,
               ),
-            );
-          }
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error deleting resume: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
-  }
-}
-
-// Explore Themes Section (Placeholder for future template dataset)
-// Explore Themes Section
-class _ExploreThemesSection extends StatefulWidget {
-  @override
-  State<_ExploreThemesSection> createState() => _ExploreThemesSectionState();
-}
-
-class _ExploreThemesSectionState extends State<_ExploreThemesSection> {
-  static final ScrollController _scrollController = ScrollController();
-
-  @override
-  Widget build(BuildContext context) {
-    final themes = [
-      {'name': 'Modern Professional', 'color': const Color(0xFF0e5bbc)},
-      {'name': 'Classic Elegant', 'color': const Color(0xFF2e7d32)},
-      {'name': 'Creative Bold', 'color': const Color(0xFFd84315)},
-      {'name': 'Minimal Clean', 'color': const Color(0xFF5e35b1)},
-      {'name': 'Corporate Style', 'color': const Color(0xFF6a1b9a)},
-      {'name': 'Tech Savvy', 'color': const Color(0xFF00838f)},
-    ];
-    
-    return SizedBox(
-      height: 180,
-      child: ListView.builder(
-        controller: _scrollController,
-        scrollDirection: Axis.horizontal,
-        itemCount: themes.length,
-        itemBuilder: (context, index) {
-          final theme = themes[index];
-          return Padding(
-            padding: EdgeInsets.only(right: index < themes.length - 1 ? 12.0 : 0),
-            child: SizedBox(
-              width: 160,
-              child: _ThemeCard(
-                name: theme['name'] as String,
-                color: theme['color'] as Color,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  static void scrollNext() {
-    _scrollController.animateTo(
-      _scrollController.offset + 172,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-  }
-
-  static void scrollPrevious() {
-    _scrollController.animateTo(
-      _scrollController.offset - 172,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-  }
-}
-
-// Theme Carousel Controls
-class _ThemeCarouselControls extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          onPressed: () => _ExploreThemesSectionState.scrollPrevious(),
-          icon: const Icon(Icons.arrow_back_ios, size: 18),
-          style: IconButton.styleFrom(
-            foregroundColor: const Color(0xFF0e5bbc),
-            padding: const EdgeInsets.all(8),
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          onPressed: () => _ExploreThemesSectionState.scrollNext(),
-          icon: const Icon(Icons.arrow_forward_ios, size: 18),
-          style: IconButton.styleFrom(
-            foregroundColor: const Color(0xFF0e5bbc),
-            padding: const EdgeInsets.all(8),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-
-// Theme Card Widget
-class _ThemeCard extends StatelessWidget {
-  final String name;
-  final Color color;
-  
-  const _ThemeCard({
-    required this.name,
-    required this.color,
-  });
-  
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            // Preview theme
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.article,
-                    color: color,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  name,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+            ],
           ),
         ),
       ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../services/notification_service.dart';
+import '../../core/theme/app_theme.dart';
 
 class ProfileInfoScreen extends StatefulWidget {
   const ProfileInfoScreen({super.key});
@@ -32,19 +35,19 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
   final _dobController = TextEditingController();
   final _linkedinController = TextEditingController();
 
-  final _courseController = TextEditingController();
-  final _universityController = TextEditingController();
-  final _gradeController = TextEditingController();
-  final _yearController = TextEditingController();
+  // Education Controllers (up to 3)
+  List<Map<String, TextEditingController>> _educations = [];
+  int _educationCount = 1;
 
-  final _jobTitleController = TextEditingController();
-  final _companyController = TextEditingController();
-  final _durationController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  // Experience Controllers (up to 5)
+  List<Map<String, TextEditingController>> _experiences = [];
+  int _experienceCount = 1;
 
   final _skillsController = TextEditingController();
   final _objectiveController = TextEditingController();
   final _referencesController = TextEditingController();
+  final _achievementsController = TextEditingController();
+  final _interestsController = TextEditingController();
 
   // Projects Controllers (up to 5, starts with 1)
   List<Map<String, TextEditingController>> _projects = [];
@@ -53,8 +56,86 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeEducationControllers();
+    _initializeExperienceControllers();
     _initializeProjectControllers();
     _loadProfileData();
+  }
+
+  void _initializeEducationControllers() {
+    _educations = List.generate(_educationCount, (index) {
+      return {
+        'course': TextEditingController(),
+        'university': TextEditingController(),
+        'grade': TextEditingController(),
+        'year': TextEditingController(),
+      };
+    });
+  }
+
+  void _addEducation() {
+    if (_educationCount < 3) {
+      setState(() {
+        _educationCount++;
+        _educations.add({
+          'course': TextEditingController(),
+          'university': TextEditingController(),
+          'grade': TextEditingController(),
+          'year': TextEditingController(),
+        });
+      });
+    }
+  }
+
+  void _removeEducation(int index) {
+    if (_educationCount > 1) {
+      setState(() {
+        _educations[index]['course']?.dispose();
+        _educations[index]['university']?.dispose();
+        _educations[index]['grade']?.dispose();
+        _educations[index]['year']?.dispose();
+        _educations.removeAt(index);
+        _educationCount--;
+      });
+    }
+  }
+
+  void _initializeExperienceControllers() {
+    _experiences = List.generate(_experienceCount, (index) {
+      return {
+        'jobTitle': TextEditingController(),
+        'company': TextEditingController(),
+        'duration': TextEditingController(),
+        'description': TextEditingController(),
+      };
+    });
+  }
+
+  void _addExperience() {
+    if (_experienceCount < 5) {
+      setState(() {
+        _experienceCount++;
+        _experiences.add({
+          'jobTitle': TextEditingController(),
+          'company': TextEditingController(),
+          'duration': TextEditingController(),
+          'description': TextEditingController(),
+        });
+      });
+    }
+  }
+
+  void _removeExperience(int index) {
+    if (_experienceCount > 1) {
+      setState(() {
+        _experiences[index]['jobTitle']?.dispose();
+        _experiences[index]['company']?.dispose();
+        _experiences[index]['duration']?.dispose();
+        _experiences[index]['description']?.dispose();
+        _experiences.removeAt(index);
+        _experienceCount--;
+      });
+    }
   }
 
   void _initializeProjectControllers() {
@@ -133,62 +214,83 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
       return 'Please enter a valid LinkedIn URL';
     }
 
-    // Education Validation
-    if (_courseController.text.trim().isEmpty) {
-      return 'Course/Degree is required';
-    }
-    if (_universityController.text.trim().isEmpty) {
-      return 'University is required';
-    }
-
-    if (_gradeController.text.trim().isEmpty) {
-      return 'Grade/CGPA is required';
-    }
-    try {
-      final grade = double.parse(_gradeController.text.trim());
-      if (grade < 0 || grade > 10) {
-        return 'Grade/CGPA must be between 0 and 10';
+    // Education Validation (at least one required)
+    for (int i = 0; i < _educations.length; i++) {
+      final edu = _educations[i];
+      if (edu['course']!.text.trim().isEmpty) {
+        return 'Education ${i + 1}: Course/Degree is required';
       }
-    } catch (e) {
-      return 'Grade/CGPA must be a valid number';
-    }
-
-    if (_yearController.text.trim().isEmpty) {
-      return 'Year of Completion is required';
-    }
-    try {
-      final year = int.parse(_yearController.text.trim());
-      if (year < 1900 || year > DateTime.now().year) {
-        return 'Please enter a valid year';
+      if (edu['university']!.text.trim().isEmpty) {
+        return 'Education ${i + 1}: University is required';
       }
-    } catch (e) {
-      return 'Year must be a valid number';
+      if (edu['grade']!.text.trim().isEmpty) {
+        return 'Education ${i + 1}: Grade/CGPA is required';
+      }
+      try {
+        final grade = double.parse(edu['grade']!.text.trim());
+        if (grade < 0 || grade > 10) {
+          return 'Education ${i + 1}: Grade/CGPA must be between 0 and 10';
+        }
+      } catch (e) {
+        return 'Education ${i + 1}: Grade/CGPA must be a valid number';
+      }
+      if (edu['year']!.text.trim().isEmpty) {
+        return 'Education ${i + 1}: Year of Completion is required';
+      }
+      try {
+        final year = int.parse(edu['year']!.text.trim());
+        if (year < 1900 || year > DateTime.now().year + 5) {
+          return 'Education ${i + 1}: Please enter a valid year';
+        }
+      } catch (e) {
+        return 'Education ${i + 1}: Year must be a valid number';
+      }
     }
 
-    // Experience Validation
-    if (_jobTitleController.text.trim().isEmpty) {
-      return 'Job Title is required';
-    }
-    if (_companyController.text.trim().isEmpty) {
-      return 'Company Name is required';
-    }
-    if (_durationController.text.trim().isEmpty) {
-      return 'Duration is required';
-    }
-    if (_descriptionController.text.trim().isEmpty) {
-      return 'Job Description is required';
+    // Experience Validation (at least one required)
+    for (int i = 0; i < _experiences.length; i++) {
+      final exp = _experiences[i];
+      if (exp['jobTitle']!.text.trim().isEmpty) {
+        return 'Experience ${i + 1}: Job Title is required';
+      }
+      if (exp['company']!.text.trim().isEmpty) {
+        return 'Experience ${i + 1}: Company Name is required';
+      }
+      if (exp['duration']!.text.trim().isEmpty) {
+        return 'Experience ${i + 1}: Duration is required';
+      }
+      if (exp['description']!.text.trim().isEmpty) {
+        return 'Experience ${i + 1}: Job Description is required';
+      }
+      if (exp['description']!.text.trim().length < 100) {
+        return 'Experience ${i + 1}: Job Description must be at least 100 characters (currently ${exp['description']!.text.trim().length})';
+      }
     }
 
     // Skills, Objective, References
     if (_skillsController.text.trim().isEmpty) {
       return 'Skills are required';
     }
+    // Count skills (comma or newline separated)
+    final skillsList = _skillsController.text
+        .trim()
+        .split(RegExp(r'[,\n]'))
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+    if (skillsList.length < 5) {
+      return 'Please add at least 5 skills (currently ${skillsList.length}). Separate with commas or new lines';
+    }
+
     if (_objectiveController.text.trim().isEmpty) {
       return 'Career Objective is required';
     }
-    if (_referencesController.text.trim().isEmpty) {
-      return 'References are required';
+    if (_objectiveController.text.trim().length < 100) {
+      return 'Career Objective must be at least 100 characters (currently ${_objectiveController.text.trim().length})';
     }
+
+    // References are optional - no validation needed
+    // Achievements and Interests are also optional - no validation needed
+
     return null;
   }
 
@@ -200,17 +302,27 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     _addressController.dispose();
     _dobController.dispose();
     _linkedinController.dispose();
-    _courseController.dispose();
-    _universityController.dispose();
-    _gradeController.dispose();
-    _yearController.dispose();
-    _jobTitleController.dispose();
-    _companyController.dispose();
-    _durationController.dispose();
-    _descriptionController.dispose();
     _skillsController.dispose();
     _objectiveController.dispose();
     _referencesController.dispose();
+    _achievementsController.dispose();
+    _interestsController.dispose();
+
+    // Dispose education controllers
+    for (var edu in _educations) {
+      edu['course']?.dispose();
+      edu['university']?.dispose();
+      edu['grade']?.dispose();
+      edu['year']?.dispose();
+    }
+
+    // Dispose experience controllers
+    for (var exp in _experiences) {
+      exp['jobTitle']?.dispose();
+      exp['company']?.dispose();
+      exp['duration']?.dispose();
+      exp['description']?.dispose();
+    }
 
     // Dispose project controllers
     for (var project in _projects) {
@@ -242,19 +354,55 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
             _dobController.text = profileData['dob'] ?? '';
             _linkedinController.text = profileData['linkedin'] ?? '';
 
-            _courseController.text = profileData['course'] ?? '';
-            _universityController.text = profileData['university'] ?? '';
-            _gradeController.text = profileData['grade'] ?? '';
-            _yearController.text = profileData['year'] ?? '';
-
-            _jobTitleController.text = profileData['jobTitle'] ?? '';
-            _companyController.text = profileData['company'] ?? '';
-            _durationController.text = profileData['duration'] ?? '';
-            _descriptionController.text = profileData['description'] ?? '';
-
             _skillsController.text = profileData['skills'] ?? '';
             _objectiveController.text = profileData['objective'] ?? '';
             _referencesController.text = profileData['references'] ?? '';
+            _achievementsController.text = profileData['achievements'] ?? '';
+            _interestsController.text = profileData['interests'] ?? '';
+
+            // Load educations
+            final educationsList =
+                profileData['educations'] as List<dynamic>? ?? [];
+            if (educationsList.isNotEmpty) {
+              _educationCount = educationsList.length.clamp(1, 3);
+              _educations = List.generate(_educationCount, (i) {
+                return {
+                  'course': TextEditingController(),
+                  'university': TextEditingController(),
+                  'grade': TextEditingController(),
+                  'year': TextEditingController(),
+                };
+              });
+              for (int i = 0; i < educationsList.length && i < 3; i++) {
+                final edu = educationsList[i] as Map<String, dynamic>;
+                _educations[i]['course']!.text = edu['course'] ?? '';
+                _educations[i]['university']!.text = edu['university'] ?? '';
+                _educations[i]['grade']!.text = edu['grade'] ?? '';
+                _educations[i]['year']!.text = edu['year'] ?? '';
+              }
+            }
+
+            // Load experiences
+            final experiencesList =
+                profileData['experiences'] as List<dynamic>? ?? [];
+            if (experiencesList.isNotEmpty) {
+              _experienceCount = experiencesList.length.clamp(1, 5);
+              _experiences = List.generate(_experienceCount, (i) {
+                return {
+                  'jobTitle': TextEditingController(),
+                  'company': TextEditingController(),
+                  'duration': TextEditingController(),
+                  'description': TextEditingController(),
+                };
+              });
+              for (int i = 0; i < experiencesList.length && i < 5; i++) {
+                final exp = experiencesList[i] as Map<String, dynamic>;
+                _experiences[i]['jobTitle']!.text = exp['jobTitle'] ?? '';
+                _experiences[i]['company']!.text = exp['company'] ?? '';
+                _experiences[i]['duration']!.text = exp['duration'] ?? '';
+                _experiences[i]['description']!.text = exp['description'] ?? '';
+              }
+            }
 
             // Load projects
             final projectsList =
@@ -299,6 +447,32 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Build educations list
+      List<Map<String, String>> educationsList = [];
+      for (var edu in _educations) {
+        if (edu['course']!.text.isNotEmpty) {
+          educationsList.add({
+            'course': edu['course']!.text,
+            'university': edu['university']!.text,
+            'grade': edu['grade']!.text,
+            'year': edu['year']!.text,
+          });
+        }
+      }
+
+      // Build experiences list
+      List<Map<String, String>> experiencesList = [];
+      for (var exp in _experiences) {
+        if (exp['jobTitle']!.text.isNotEmpty) {
+          experiencesList.add({
+            'jobTitle': exp['jobTitle']!.text,
+            'company': exp['company']!.text,
+            'duration': exp['duration']!.text,
+            'description': exp['description']!.text,
+          });
+        }
+      }
+
       // Build projects list (only include non-empty projects)
       List<Map<String, String>> projectsList = [];
       for (var project in _projects) {
@@ -321,17 +495,13 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
           'address': _addressController.text,
           'dob': _dobController.text,
           'linkedin': _linkedinController.text,
-          'course': _courseController.text,
-          'university': _universityController.text,
-          'grade': _gradeController.text,
-          'year': _yearController.text,
-          'jobTitle': _jobTitleController.text,
-          'company': _companyController.text,
-          'duration': _durationController.text,
-          'description': _descriptionController.text,
+          'educations': educationsList,
+          'experiences': experiencesList,
           'skills': _skillsController.text,
           'objective': _objectiveController.text,
           'references': _referencesController.text,
+          'achievements': _achievementsController.text,
+          'interests': _interestsController.text,
           'projects': projectsList,
         },
         'updatedAt': FieldValue.serverTimestamp(),
@@ -340,6 +510,11 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
       setState(() {
         _isProfileCreated = true;
       });
+      
+      // Cancel incomplete profile notifications since profile is now complete
+      if (!kIsWeb) {
+        await NotificationService().cancelIncompleteProfileNotifications();
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -371,16 +546,16 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.bgPrimary,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.bgPrimary,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Text(
           _isProfileCreated ? 'Edit Profile' : 'Create Profile',
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: AppColors.textPrimary,
           ),
         ),
         centerTitle: true,
@@ -419,11 +594,11 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       isExpanded: _expandedIndex == 1,
                       onTap: () => setState(() =>
                           _expandedIndex = _expandedIndex == 1 ? null : 1),
-                      child: _EducationDetailsForm(
-                        courseController: _courseController,
-                        universityController: _universityController,
-                        gradeController: _gradeController,
-                        yearController: _yearController,
+                      child: _EducationsForm(
+                        educations: _educations,
+                        onAddEducation: _addEducation,
+                        onRemoveEducation: _removeEducation,
+                        canAddMore: _educationCount < 3,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -435,11 +610,11 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                       isExpanded: _expandedIndex == 2,
                       onTap: () => setState(() =>
                           _expandedIndex = _expandedIndex == 2 ? null : 2),
-                      child: _ExperienceForm(
-                        jobTitleController: _jobTitleController,
-                        companyController: _companyController,
-                        durationController: _durationController,
-                        descriptionController: _descriptionController,
+                      child: _ExperiencesForm(
+                        experiences: _experiences,
+                        onAddExperience: _addExperience,
+                        onRemoveExperience: _removeExperience,
+                        canAddMore: _experienceCount < 5,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -482,14 +657,36 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // References Section
+                    // References Section (Optional)
                     _ProfileSection(
                       icon: Icons.contact_mail_outlined,
-                      title: 'References',
+                      title: 'References (Optional)',
                       isExpanded: _expandedIndex == 6,
                       onTap: () => setState(() =>
                           _expandedIndex = _expandedIndex == 6 ? null : 6),
                       child: _ReferencesForm(controller: _referencesController),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Achievements Section (Optional)
+                    _ProfileSection(
+                      icon: Icons.emoji_events_outlined,
+                      title: 'Achievements (Optional)',
+                      isExpanded: _expandedIndex == 7,
+                      onTap: () => setState(() =>
+                          _expandedIndex = _expandedIndex == 7 ? null : 7),
+                      child: _AchievementsForm(controller: _achievementsController),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Interests Section (Optional)
+                    _ProfileSection(
+                      icon: Icons.interests_outlined,
+                      title: 'Other Interests (Optional)',
+                      isExpanded: _expandedIndex == 8,
+                      onTap: () => setState(() =>
+                          _expandedIndex = _expandedIndex == 8 ? null : 8),
+                      child: _InterestsForm(controller: _interestsController),
                     ),
                     const SizedBox(height: 20),
                   ],
@@ -501,24 +698,18 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
             Container(
               padding: const EdgeInsets.all(20.0),
               decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
+                color: AppColors.bgPrimary,
+                border: const Border(top: BorderSide(color: AppColors.borderSubtle)),
               ),
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _isLoading ? null : _saveProfile,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF0e5bbc),
+                    backgroundColor: AppColors.textPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.radiusMd),
                     ),
                   ),
                   child: _isLoading
@@ -544,31 +735,20 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
         ),
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
+        decoration: const BoxDecoration(
+          color: AppColors.bgPrimary,
+          border: Border(top: BorderSide(color: AppColors.borderSubtle)),
         ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
+        child: SafeArea(
+          top: false,
           child: BottomNavigationBar(
             currentIndex: _selectedIndex,
             onTap: (index) {
               if (index != _selectedIndex) {
                 if (index == 0) {
                   Navigator.pushReplacementNamed(context, '/dashboard');
+                } else if (index == 1) {
+                  Navigator.pushReplacementNamed(context, '/ats-checker');
                 } else if (index == 3) {
                   Navigator.pushReplacementNamed(context, '/settings');
                 }
@@ -577,11 +757,6 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                 });
               }
             },
-            selectedItemColor: const Color(0xFF0e5bbc),
-            unselectedItemColor: const Color.fromARGB(255, 80, 80, 80),
-            backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-            elevation: 0,
-            type: BottomNavigationBarType.fixed,
             items: const [
               BottomNavigationBarItem(
                 icon: Icon(Icons.home_outlined),
@@ -589,9 +764,9 @@ class _ProfileInfoScreenState extends State<ProfileInfoScreen> {
                 label: 'Home',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.explore_outlined),
-                activeIcon: Icon(Icons.explore),
-                label: 'Explore',
+                icon: Icon(Icons.document_scanner_outlined),
+                activeIcon: Icon(Icons.document_scanner),
+                label: 'ATS',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline),
@@ -631,18 +806,17 @@ class _ProfileSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(AppRadius.radiusLg),
         border: Border.all(
-          color: isExpanded ? const Color(0xFF0e5bbc) : Colors.grey.shade300,
-          width: isExpanded ? 2 : 1,
+          color: isExpanded ? AppColors.accent : AppColors.borderSubtle,
+          width: 1.5,
         ),
       ),
       child: Column(
         children: [
-          InkWell(
+          GestureDetector(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
@@ -650,10 +824,10 @@ class _ProfileSection extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0e5bbc).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.accentTint,
+                      borderRadius: BorderRadius.circular(AppRadius.radiusSm),
                     ),
-                    child: Icon(icon, color: const Color(0xFF0e5bbc), size: 20),
+                    child: Icon(icon, color: AppColors.accent, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -662,9 +836,7 @@ class _ProfileSection extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: isExpanded
-                            ? const Color(0xFF0e5bbc)
-                            : Colors.black87,
+                        color: isExpanded ? AppColors.accent : AppColors.textPrimary,
                       ),
                     ),
                   ),
@@ -672,9 +844,7 @@ class _ProfileSection extends StatelessWidget {
                     isExpanded
                         ? Icons.keyboard_arrow_up
                         : Icons.keyboard_arrow_down,
-                    color: isExpanded
-                        ? const Color(0xFF0e5bbc)
-                        : Colors.grey.shade600,
+                    color: isExpanded ? AppColors.accent : AppColors.textTertiary,
                   ),
                 ],
               ),
@@ -740,75 +910,165 @@ class _PersonalDetailsFormState extends State<_PersonalDetailsForm> {
 }
 
 // Education Details Form
-class _EducationDetailsForm extends StatelessWidget {
-  final TextEditingController courseController;
-  final TextEditingController universityController;
-  final TextEditingController gradeController;
-  final TextEditingController yearController;
+class _EducationsForm extends StatelessWidget {
+  final List<Map<String, TextEditingController>> educations;
+  final VoidCallback onAddEducation;
+  final Function(int) onRemoveEducation;
+  final bool canAddMore;
 
-  const _EducationDetailsForm({
-    required this.courseController,
-    required this.universityController,
-    required this.gradeController,
-    required this.yearController,
+  const _EducationsForm({
+    required this.educations,
+    required this.onAddEducation,
+    required this.onRemoveEducation,
+    required this.canAddMore,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildTextField('Course/Degree', Icons.school, courseController),
-        const SizedBox(height: 12),
-        _buildTextField(
-            'University/Institution', Icons.business, universityController),
-        const SizedBox(height: 12),
-        _buildTextField('Grade/CGPA (0-10)', Icons.grade, gradeController,
-            inputType: TextInputType.numberWithOptions(decimal: true)),
-        const SizedBox(height: 8),
-        Text(
-          'CGPA must be between 0 and 10',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade600,
-            fontStyle: FontStyle.italic,
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: educations.length,
+          separatorBuilder: (_, __) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Divider(color: Colors.grey.shade300),
           ),
+          itemBuilder: (context, index) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Education ${index + 1}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0e5bbc),
+                      ),
+                    ),
+                    if (educations.length > 1)
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                        onPressed: () => onRemoveEducation(index),
+                        tooltip: 'Remove Education',
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildTextField('Course/Degree', Icons.school, educations[index]['course']!),
+                const SizedBox(height: 12),
+                _buildTextField('University/Institution', Icons.business, educations[index]['university']!),
+                const SizedBox(height: 12),
+                _buildTextField('Grade/CGPA (0-10)', Icons.grade, educations[index]['grade']!,
+                    inputType: const TextInputType.numberWithOptions(decimal: true)),
+                const SizedBox(height: 12),
+                _buildTextField('Year of Completion', Icons.date_range, educations[index]['year']!,
+                    inputType: TextInputType.number),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: 12),
-        _buildTextField('Year of Completion', Icons.date_range, yearController,
-            inputType: TextInputType.number),
+        if (canAddMore) ...[
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onAddEducation,
+            icon: const Icon(Icons.add),
+            label: Text('Add Another Education (${educations.length}/3)'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF0e5bbc),
+            ),
+          ),
+        ],
       ],
     );
   }
 }
 
-// Experience Form
-class _ExperienceForm extends StatelessWidget {
-  final TextEditingController jobTitleController;
-  final TextEditingController companyController;
-  final TextEditingController durationController;
-  final TextEditingController descriptionController;
+// Experiences Form
+class _ExperiencesForm extends StatelessWidget {
+  final List<Map<String, TextEditingController>> experiences;
+  final VoidCallback onAddExperience;
+  final Function(int) onRemoveExperience;
+  final bool canAddMore;
 
-  const _ExperienceForm({
-    required this.jobTitleController,
-    required this.companyController,
-    required this.durationController,
-    required this.descriptionController,
+  const _ExperiencesForm({
+    required this.experiences,
+    required this.onAddExperience,
+    required this.onRemoveExperience,
+    required this.canAddMore,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildTextField('Job Title', Icons.work, jobTitleController),
-        const SizedBox(height: 12),
-        _buildTextField('Company Name', Icons.business, companyController),
-        const SizedBox(height: 12),
-        _buildTextField('Duration (e.g., 2020-2023)', Icons.access_time,
-            durationController),
-        const SizedBox(height: 12),
-        _buildTextField(
-            'Job Description', Icons.description, descriptionController,
-            maxLines: 4),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: experiences.length,
+          separatorBuilder: (_, __) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Divider(color: Colors.grey.shade300),
+          ),
+          itemBuilder: (context, index) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Experience ${index + 1}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0e5bbc),
+                      ),
+                    ),
+                    if (experiences.length > 1)
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                        onPressed: () => onRemoveExperience(index),
+                        tooltip: 'Remove Experience',
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildTextField('Job Title', Icons.work, experiences[index]['jobTitle']!),
+                const SizedBox(height: 12),
+                _buildTextField('Company Name', Icons.business, experiences[index]['company']!),
+                const SizedBox(height: 12),
+                _buildTextField('Duration (e.g., 2020-2023)', Icons.access_time, experiences[index]['duration']!),
+                const SizedBox(height: 12),
+                _buildTextField('Job Description', Icons.description, experiences[index]['description']!, maxLines: 4),
+                const SizedBox(height: 8),
+                Text(
+                  '⚠️ Minimum 100 characters required for detailed description',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.orange.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        if (canAddMore) ...[
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onAddExperience,
+            icon: const Icon(Icons.add),
+            label: Text('Add Another Experience (${experiences.length}/5)'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF0e5bbc),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -828,11 +1088,11 @@ class _SkillsForm extends StatelessWidget {
             maxLines: 3),
         const SizedBox(height: 8),
         Text(
-          'Example: Python, JavaScript, React, Node.js',
+          '⚠️ Minimum 5 skills required | Example: Python, JavaScript, React, Node.js, MongoDB',
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey.shade600,
-            fontStyle: FontStyle.italic,
+            color: Colors.orange.shade700,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
@@ -956,11 +1216,11 @@ class _ObjectiveForm extends StatelessWidget {
             maxLines: 5),
         const SizedBox(height: 8),
         Text(
-          'Write a brief summary of your career goals',
+          '⚠️ Minimum 100 characters required | Write a detailed summary of your career goals',
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey.shade600,
-            fontStyle: FontStyle.italic,
+            color: Colors.orange.shade700,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
@@ -979,10 +1239,62 @@ class _ReferencesForm extends StatelessWidget {
     return Column(
       children: [
         _buildTextField('References', Icons.contact_mail, controller,
-            maxLines: 5),
+            maxLines: 5, isRequired: false),
         const SizedBox(height: 8),
         Text(
-          'Format: Name, Position, Contact (one per line)',
+          'Optional | Format: Name, Position, Contact (one per line)',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Achievements Form
+class _AchievementsForm extends StatelessWidget {
+  final TextEditingController controller;
+
+  const _AchievementsForm({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _buildTextField('Achievements', Icons.emoji_events, controller,
+            maxLines: 5, isRequired: false),
+        const SizedBox(height: 8),
+        Text(
+          'Optional | Add hackathons, awards, certifications (one per line with bullet points)',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Interests Form
+class _InterestsForm extends StatelessWidget {
+  final TextEditingController controller;
+
+  const _InterestsForm({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _buildTextField('Other Interests', Icons.favorite, controller,
+            maxLines: 3, isRequired: false),
+        const SizedBox(height: 8),
+        Text(
+          'Optional | Add your hobbies, interests (comma separated)',
           style: TextStyle(
             fontSize: 12,
             color: Colors.grey.shade600,
@@ -1006,21 +1318,9 @@ Widget _buildTextField(
     keyboardType: inputType,
     decoration: InputDecoration(
       labelText: isRequired ? '$label *' : label,
-      prefixIcon: Icon(icon, color: const Color(0xFF0e5bbc)),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFF0e5bbc), width: 2),
-      ),
+      prefixIcon: Icon(icon, color: AppColors.accent),
       filled: true,
-      fillColor: Colors.grey.shade50,
+      fillColor: AppColors.bgSurface,
     ),
   );
 }
@@ -1050,22 +1350,10 @@ Widget _buildDateField({
       enabled: false,
       decoration: InputDecoration(
         labelText: '$label *',
-        prefixIcon: const Icon(Icons.calendar_today, color: Color(0xFF0e5bbc)),
-        suffixIcon: const Icon(Icons.arrow_drop_down, color: Color(0xFF0e5bbc)),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
+        prefixIcon: const Icon(Icons.calendar_today, color: AppColors.accent),
+        suffixIcon: const Icon(Icons.arrow_drop_down, color: AppColors.accent),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: AppColors.bgSurface,
       ),
     ),
   );
